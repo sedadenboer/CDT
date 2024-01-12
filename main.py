@@ -6,11 +6,11 @@
 # Description:
 # Main file for the project. This file will be used to run the project.
 
-from code_cdt.classes.universe import Universe
+from src.classes.universe import Universe
+from src.visualisation.testing_plot import visualise_universe
 
 def main():
-    universe = Universe(10, 20)
-    print(universe)
+    pass
 
 if __name__ == "__main__":
     main()
