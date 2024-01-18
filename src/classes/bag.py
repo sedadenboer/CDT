@@ -7,6 +7,7 @@
 
 import random
 
+
 class Bag:
     """
     The Bag class represents a bag of objects (pool indices) that can
@@ -100,6 +101,18 @@ class Bag:
         
         return None # Bag is empty
     
+    def contains(self, pool_index: int) -> bool:
+        """
+        Check if Bag contains pool index.
+
+        Args:
+            pool_index (int): Object to check if in bag.
+
+        Returns:
+            bool: True if pool index is in bag, False otherwise.
+        """
+        return self.indices[pool_index] != self.EMPTY
+
     def get_number_occupied(self) -> int:
         """
         Returns:
