@@ -38,9 +38,12 @@ class Triangle:
         self.vr = None # right
         self.vc = None # apex
 
+        # Set the time of the triangle to the time of the base of the triangle
+        self.time = self.vl.time if self.vl else None
+
     def get_triangle_left(self) -> "Triangle":
         """
-        Get the triangle to the left of this triangle.
+        Get the triangle object to the left of this triangle.
 
         Raises:
             ValueError: If there is no triangle to the left.
@@ -55,7 +58,7 @@ class Triangle:
 
     def get_triangle_right(self) -> "Triangle":
         """
-        Get the triangle to the right of this triangle.
+        Get the triangle object to the right of this triangle.
 
         Raises:
             ValueError: If there is no triangle to the right.
@@ -70,7 +73,7 @@ class Triangle:
 
     def get_triangle_center(self) -> "Triangle":
         """
-        Get the triangle to the center of this triangle.
+        Get the triangle object to the center of this triangle.
         
         Raises:
             ValueError: If there is no triangle to the center.
@@ -136,7 +139,7 @@ class Triangle:
         if not self.vl:
             raise ValueError("No vertex left.")
         
-        return self.elements[self.vl]
+        return self.vl
 
     def get_vertex_right(self) -> "Vertex":
         """
@@ -151,7 +154,7 @@ class Triangle:
         if not self.vr:
             raise ValueError("No vertex right.")
         
-        return self.elements[self.vr]
+        return self.vr
 
     def get_vertex_center(self) -> "Vertex":
         """
@@ -166,7 +169,7 @@ class Triangle:
         if not self.vc:
             raise ValueError("No vertex center.")
         
-        return self.elements[self.vc]
+        return self.vc
 
     def set_vertex_left(self, v: "Vertex") -> None:
         """
@@ -177,8 +180,7 @@ class Triangle:
         """
         self.vl = v
         self.time = v.time
-        if self.type == "UP":
-            v.set_triangle_right(self)
+        self.update_type()
 
     def set_vertex_right(self, v: "Vertex") -> None:
         """
@@ -188,8 +190,8 @@ class Triangle:
             v (Vertex): Right vertex.
         """
         self.vr = v
-        if self.type == "UP":
-            v.set_triangle_left(self)
+        self.time = v.time
+        self.update_type()
 
     def set_vertex_center(self, v: "Vertex") -> None:
         """
@@ -199,7 +201,8 @@ class Triangle:
             v (Vertex): Center vertex.
         """
         self.vc = v
-
+        self.update_type()
+    
     def set_vertices(self, vl: "Vertex", vr: "Vertex", vc: "Vertex") -> None:
         """
         Set the vertices of this triangle.
@@ -212,9 +215,8 @@ class Triangle:
         self.vl = vl
         self.vr = vr
         self.vc = vc
-
+        self.time = vl.time
         self.update_type()
-
 
     def is_upwards(self):
         """
@@ -237,10 +239,8 @@ class Triangle:
         else:
             self.type = "DOWN"
 
-        if self.vc.time == 0 and self.vl.time > 1:
-            self.type = "UP"
-        if self.vl.time == 0 and self.vc.time > 1:
-            self.type = "DOWN"
+        
+
 
 
 # triangles = Triangle()

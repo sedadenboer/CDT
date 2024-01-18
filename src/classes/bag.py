@@ -100,6 +100,13 @@ class Bag:
         
         return None # Bag is empty
     
+    def get_number_occupied(self) -> int:
+        """
+        Returns:
+            int: Number of occupied spaces in Bag.
+        """
+        return self.size
+    
     def log(self) -> None:
         """
         Print Bag.

@@ -7,9 +7,9 @@
 
 import random
 import numpy as np
+from universe import Universe
 
-
-class Simulation(object):
+class Simulation:
     """
     The Simulation class is responsible for all procedures related
     to the actual Monte Carlo simulation. It proposes moves and computes
@@ -17,60 +17,40 @@ class Simulation(object):
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
     """
-    def __init__(self, universe, time_step):
+    def __init__(self, universe, time_step, rescaled_cosmological_constant = np.log(2), target_volume = 0):
         self.universe = universe
         self.time_step = time_step
+        self.rescaled_cosmological_constant = rescaled_cosmological_constant
+        self.target_volume = target_volume
         self.current_time = 0
-        self.rescaled_cosmological_constant = np.log(2)
         self.add_move_count = 0
         self.delete_move_count = 0
         self.flip_move_count = 0
-    
-    def weighted_boltzmann_factor(self, rescaled_cosmological_constant: float) -> float:
-        return np.exp(rescaled_cosmological_constant)
-    
-    def accept_move(self, p_move: float) -> bool:
-        if random.random() > p_move:
-            return False     
 
     def add_move(self) -> bool:
         """
-        Let's consider an example: If split_f is 2, it means that the first two
-        future nodes will be separated from the original node. The new number of
-        future nodes (n_f_new) will be the original number of future nodes (n_f) minus
-        the number of nodes being split (split_f), plus 1 for the new node created.
-        The same logic applies to n_p_new for past nodes.
+        Propose a move to add a vertex to the triangulation.
 
         Returns:
             bool: True if move was accepted, False otherwise.
-        """
-        vertex = self.universe.get_random_node("add")
+        """        
+        # Compute acceptance ratio
+        n0 = self.universe.vertex_bag.get_number_occupied()
+        n0_four = self.universe.four_vertices_bag.get_number_occupied()
+        acceptance_ratio = n0 / (n0_four + 1.0) * np.exp(-2 * self.rescaled_cosmological_constant)
 
-        # Get the number of past and future nodes
-        n_p = vertex.get_number_of_past_neighbours()
-        n_f = vertex.get_number_of_future_neighbours()
+        triangle = self.universe.get_random_triangle()
         
-        # Get the total number of spatial nodes
-        N_v = self.universe.get_total_volume()
-
-        # Choose a random split point
-        split_f = random.randint(1, n_f)
-        split_p = random.randint(1, n_p)
-        
-        # Compute the new number of past and future nodes
-        n_f_new = n_f - split_f + 1
-        n_p_new = n_p - split_p + 1
-
-        # Compute the probability of the move
-        P_move = (N_v / (N_v + 1)) * (
-                 (n_p * n_f) / (n_p_new + n_f_new)) * (
-                 self.weighted_boltzmann_factor(self.rescaled_cosmological_constant))
-
-        # Accept or reject the move
-        if self.accept_move(P_move):
-            new_node = self.universe.create_node()
+        # Generate a random number between 0 and 1
+        acceptance_threshold = random.uniform(0, 1)
+        # If the acceptance criterion is greater than the random number,
+        # accept the proposal state as the current state
+        if acceptance_ratio > acceptance_threshold:
             return True
         
+        # Add the vertex to the triangulation
+
+
         return False
 
     def delete_move(self):

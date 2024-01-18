@@ -30,7 +30,8 @@ class SpatialNode(object):
         self.t = time
         self.future_nodes = []
         self.past_nodes = []
-        self.right_neighbour = None 
+        self.right_neighbour = None
+        self.left_neighbour = None 
         self.boundary = 0  
 
 class Universe(object):
