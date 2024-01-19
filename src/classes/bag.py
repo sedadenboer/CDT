@@ -8,7 +8,7 @@
 import random
 
 
-class Bag:
+class Bag(object):
     """
     The Bag class represents a bag of objects (pool indices) that can
     be added to and removed from. It is used to be able to pick random
@@ -140,14 +140,14 @@ class Bag:
         return str(self.elements)
     
 
-# # test
+# Test
+if __name__ == "__main__":
+    bag = Bag(10)
+    bag.add(1)
+    bag.add(2)
+    bag.add(3)
+    bag.add(4)
 
-# bag = Bag(10)
-# bag.add(1)
-# bag.add(2)
-# bag.add(3)
-# bag.add(4)
-
-# print(bag.elements)
-# print(bag.indices)
-# print(bag.pick())
+    print(bag.elements)
+    print(bag.indices)
+    print(bag.pick())

@@ -5,10 +5,8 @@
 # 
 # Description:
 
-from vertex import Vertex
 
-
-class Triangle:
+class Triangle(object):
     """
     Represents a triangle in the triangulation.
 
@@ -22,10 +20,10 @@ class Triangle:
         vr: Vertex to the right.
         vc: Vertex to the center.
     """
-    capacity = 100
+    capacity = 30
 
-    def __init__(self, ID: int) -> None:
-        self.ID = ID
+    def __init__(self) -> None:
+        self.ID = None
         self.type = None
 
         # The three triangles sharing and edge with triangle t
@@ -41,92 +39,74 @@ class Triangle:
         # Set the time of the triangle to the time of the base of the triangle
         self.time = self.vl.time if self.vl else None
 
-    def get_triangle_left(self) -> "Triangle":
+    def get_triangle_left(self) -> object:
         """
         Get the triangle object to the left of this triangle.
 
-        Raises:
-            ValueError: If there is no triangle to the left.
-
         Returns:
-            Triangle: Triangle to the left.
+            object: Triangle to the left.
         """
-        if not self.tl:
-            raise ValueError("No triangle left.")
-        
         return self.tl
 
-    def get_triangle_right(self) -> "Triangle":
+    def get_triangle_right(self) -> object:
         """
         Get the triangle object to the right of this triangle.
 
-        Raises:
-            ValueError: If there is no triangle to the right.
-
         Returns:
-            Triangle: Triangle to the right.
+            object: Triangle to the right.
         """
-        if not self.tr:
-            raise ValueError("No triangle right.")
-        
         return self.tr
 
-    def get_triangle_center(self) -> "Triangle":
+    def get_triangle_center(self) -> object:
         """
         Get the triangle object to the center of this triangle.
-        
-        Raises:
-            ValueError: If there is no triangle to the center.
 
         Returns:
-            Triangle: Triangle to the center.
-        """
-        if not self.tc:
-            raise ValueError("No triangle center.")
-        
+            object: Triangle to the center.
+        """        
         return self.tc
 
-    def set_triangle_left(self, t: "Triangle") -> None:
+    def set_triangle_left(self, t: object) -> None:
         """
         Set the triangle to the left of this triangle.
 
         Args:
-            t (Triangle): Triangle to the left.
+            t (object): Triangle to the left.
         """
         self.tl = t 
 
-    def set_triangle_right(self, t: "Triangle") -> None:
+    def set_triangle_right(self, t: object) -> None:
         """
         Set the triangle to the right of this triangle.
 
         Args:
-            t (Triangle): Triangle to the right.
+            t (object): Triangle to the right.
         """
         self.tr = t
 
-    def set_triangle_center(self, t: "Triangle") -> None:
+    def set_triangle_center(self, t: object) -> None:
         """
         Set the triangle to the center of this triangle.
 
         Args:
-            t (Triangle): Triangle to the center.
+            t (object): Triangle to the center.
         """
         self.tc = t
 
-    def set_triangles(self, tl: "Triangle", tr : "Triangle", tc: "Triangle") -> None:
+    def set_triangles(self, tl: object, tr : object, tc: object) -> None:
         """
         Set the triangles to the left, right and center of this triangle.
 
         Args:
-            tl (Triangle): Triangle to the left.
-            tr (Triangle): Triangle to the right.
-            tc (Triangle): Triangle to the center.
+            tl (object): Triangle to the left.
+            tr (object): Triangle to the right.
+            tc (object): Triangle to the center.
         """
         self.tl = tl
         self.tr = tr
         self.tc = tc
 
-    def get_vertex_left(self) -> "Vertex":
+    def get_vertex_left(self) -> object:
         """
         Get the left vertex of this triangle.
 
@@ -134,14 +114,14 @@ class Triangle:
             ValueError: If there is no left vertex.
 
         Returns:
-            Vertex: Left vertex.
+            object: Left vertex.
         """
         if not self.vl:
             raise ValueError("No vertex left.")
         
         return self.vl
 
-    def get_vertex_right(self) -> "Vertex":
+    def get_vertex_right(self) -> object:
         """
         Get the right vertex of this triangle.
 
@@ -149,14 +129,14 @@ class Triangle:
             ValueError: If there is no right vertex.
 
         Returns:
-            Vertex: Right vertex.
+            object: Right vertex.
         """
         if not self.vr:
             raise ValueError("No vertex right.")
         
         return self.vr
 
-    def get_vertex_center(self) -> "Vertex":
+    def get_vertex_center(self) -> object:
         """
         Get the center vertex of this triangle.
 
@@ -164,53 +144,53 @@ class Triangle:
             ValueError: If there is no center vertex.
 
         Returns:
-            Vertex: Center vertex.
+            object: Center vertex.
         """
         if not self.vc:
             raise ValueError("No vertex center.")
         
         return self.vc
 
-    def set_vertex_left(self, v: "Vertex") -> None:
+    def set_vertex_left(self, v: object) -> None:
         """
         Set the left vertex of this triangle.
 
         Args:
-            v (Vertex): Left vertex.
+            v (object): Left vertex.
         """
         self.vl = v
         self.time = v.time
         self.update_type()
 
-    def set_vertex_right(self, v: "Vertex") -> None:
+    def set_vertex_right(self, v: object) -> None:
         """
         Set the right vertex of this triangle.
 
         Args:
-            v (Vertex): Right vertex.
+            v (object): Right vertex.
         """
         self.vr = v
         self.time = v.time
         self.update_type()
 
-    def set_vertex_center(self, v: "Vertex") -> None:
+    def set_vertex_center(self, v: object) -> None:
         """
         Set the center vertex of this triangle.
 
         Args:
-            v (Vertex): Center vertex.
+            v (object): Center vertex.
         """
         self.vc = v
         self.update_type()
     
-    def set_vertices(self, vl: "Vertex", vr: "Vertex", vc: "Vertex") -> None:
+    def set_vertices(self, vl: object, vr: object, vc: object) -> None:
         """
         Set the vertices of this triangle.
 
         Args:
-            vl (Vertex): Left vertex.
-            vr (Vertex): Right vertex.
-            vc (Vertex): Center vertex.
+            vl (object): Left vertex.
+            vr (object): Right vertex.
+            vc (object): Center vertex.
         """
         self.vl = vl
         self.vr = vr
@@ -240,13 +220,12 @@ class Triangle:
             self.type = "DOWN"
 
         
+# Test
+if __name__ == "__main__":
+    triangles = Triangle()
+    for _ in range(5):
+        triangles.create()
 
-
-
-# triangles = Triangle()
-# for _ in range(5):
-#     triangles.create()
-
-# triangles.destroy(0)
-# triangles.destroy(1)
-# triangles.destroy(4)
+    triangles.destroy(0)
+    triangles.destroy(1)
+    triangles.destroy(4)

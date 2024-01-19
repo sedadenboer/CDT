@@ -17,7 +17,7 @@ class Simulation:
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
     """
-    def __init__(self, universe, time_step, rescaled_cosmological_constant = np.log(2), target_volume = 0):
+    def __init__(self, universe = Universe(total_time=3, initial_slice_size=3), time_step = 0, rescaled_cosmological_constant = np.log(2), target_volume = 0):
         self.universe = universe
         self.time_step = time_step
         self.rescaled_cosmological_constant = rescaled_cosmological_constant
@@ -39,17 +39,17 @@ class Simulation:
         n0_four = self.universe.four_vertices_bag.get_number_occupied()
         acceptance_ratio = n0 / (n0_four + 1.0) * np.exp(-2 * self.rescaled_cosmological_constant)
 
-        triangle = self.universe.get_random_triangle()
+        # Pick a random vertex from the bag of triangles
+        triangle = self.universe.triangle_bag.pick()
         
         # Generate a random number between 0 and 1
         acceptance_threshold = random.uniform(0, 1)
         # If the acceptance criterion is greater than the random number,
         # accept the proposal state as the current state
         if acceptance_ratio > acceptance_threshold:
+            # Add the vertex to the triangulation
+            self.universe.insert_vertex(triangle)
             return True
-        
-        # Add the vertex to the triangulation
-
 
         return False
 

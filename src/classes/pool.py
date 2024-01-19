@@ -5,7 +5,10 @@
 # 
 # Description:
 
-class Pool:
+from vertex import Vertex
+
+
+class Pool(object):
     """
     The Pool class represents a pool of indices that can be used to create
     and destroy objects. It is used to keep track of the objects that are
@@ -20,12 +23,12 @@ class Pool:
     def __init__(self, capacity: int, silent: bool = True) -> None:
         self.silent = silent
         self.capacity = capacity
-        self.elements = [{'index': i, 'used': False, 'next': i + 1} for i in range(self.capacity)]
+        self.elements = [{'index': i, 'object': None, 'next': i + 1} for i in range(self.capacity)]
         self.elements[-1]['next'] = None
         self.used_indices = set()
         self.first = 0
-
-    def occupy(self) -> int:
+    
+    def occupy(self, obj: object) -> int:
         """
         Occupies a space in the pool and returns the index of the object.
 
@@ -39,8 +42,11 @@ class Pool:
         # Get index of first free object
         index = self.first
 
+        # Set index of object
+        obj.ID = index
+
         # Mark object as used
-        self.elements[index]['used'] = True
+        self.elements[index]['object'] = obj
 
         # Add index to set of used indices
         self.used_indices.add(index)
@@ -54,7 +60,7 @@ class Pool:
             print("used_indices:", self.used_indices)
             print("first:", self.first)
             print()
-        
+
         return index
 
     def free(self, index: int) -> None:
@@ -72,7 +78,7 @@ class Pool:
             raise Exception("Index is not valid.")
 
         # Mark object as unused
-        self.elements[index]['used'] = False
+        self.elements[index]['object'] = None
 
         # Remove index from set of used indices
         self.used_indices.remove(index)
@@ -87,3 +93,25 @@ class Pool:
             print("used_indices:", self.used_indices)
             print("first:", self.first)
             print()
+
+    def get(self, index: int) -> object:
+        """
+        Gets an object from the pool.
+
+        Args:
+            index (int): Index of object to get.
+
+        Returns:
+            object: Object.
+        """
+        return self.elements[index]['object']
+
+# Test
+if __name__ == "__main__":
+    vertex = Vertex(0)
+    vertex2 = Vertex(0)
+    pool = Pool(10, silent=False)
+    index = pool.occupy(vertex)
+    index2 = pool.occupy(vertex2)
+    pool.free(index)
+    index3 = pool.occupy(vertex)
