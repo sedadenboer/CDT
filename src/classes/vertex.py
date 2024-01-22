@@ -7,15 +7,14 @@
 
 
 class Vertex(object):
-    capacity = 30
 
     def __init__(self, time: int):
         self.ID = None
         self.time = time
-        self.triangles = []
+        self.tr_iangles = []
         # The two (2,1)-triangles sharing an edge with vertex v
-        self.tr = None
-        self.tl = None
+        self.tr_ = None
+        self.tl_ = None
 
     def set_triangle_left(self, t: object) -> None:
         """
@@ -24,7 +23,7 @@ class Vertex(object):
         Args:
             t (object): (2,1)-triangle to set to the left of this vertex.
         """
-        self.tl = t
+        self.tl_ = t
     
     def set_triangle_right(self, t: object) -> None:
         """
@@ -33,7 +32,7 @@ class Vertex(object):
         Args:
             t (object): (2,1)-triangle to set to the right of this vertex.
         """
-        self.tr = t
+        self.tr_ = t
     
     def get_triangle_left(self) -> object:
         """
@@ -42,7 +41,7 @@ class Vertex(object):
         Returns:
             object: (2,1)-triangle to the left.
         """
-        return self.tl
+        return self.tl_
     
     def get_triangle_right(self) -> object:
         """
@@ -51,4 +50,4 @@ class Vertex(object):
         Returns:
             object: (2,1)-triangle to the right.
         """      
-        return self.tr
+        return self.tr_

@@ -20,11 +20,12 @@ class Pool(object):
         used_indices (set): Set of indices of used objects.
         first (int): Index of first free object.
     """
-    def __init__(self, capacity: int, silent: bool = True) -> None:
-        self.silent = silent
+    def __init__(self, capacity: int) -> None:
         self.capacity = capacity
-        self.elements = [{'index': i, 'object': None, 'next': i + 1} for i in range(self.capacity)]
-        self.elements[-1]['next'] = None
+        self.elements = [None for _ in range(self.capacity)]
+        self.x = [0] * self.capacity
+        self.p = [i + 1 for i in range(self.capacity)]
+        self.p[-1] = None
         self.used_indices = set()
         self.first = 0
     
@@ -46,20 +47,14 @@ class Pool(object):
         obj.ID = index
 
         # Mark object as used
-        self.elements[index]['object'] = obj
+        self.elements[index] = obj
+        self.x[index] = 1
 
         # Add index to set of used indices
         self.used_indices.add(index)
 
         # Update first free object
-        self.first = self.elements[index]['next']
-
-        if not self.silent:
-            print(self.elements)
-            print("added:", index)
-            print("used_indices:", self.used_indices)
-            print("first:", self.first)
-            print()
+        self.first = self.p[index]
 
         return index
 
@@ -78,21 +73,15 @@ class Pool(object):
             raise Exception("Index is not valid.")
 
         # Mark object as unused
-        self.elements[index]['object'] = None
+        self.elements[index] = None
+        self.x[index] = 0
 
         # Remove index from set of used indices
         self.used_indices.remove(index)
 
         # Update first free object
-        self.elements[index]['next'] = self.first
+        self.p[index] = self.first
         self.first = index
-
-        if not self.silent:
-            print(self.elements)
-            print("destroyed:", index)
-            print("used_indices:", self.used_indices)
-            print("first:", self.first)
-            print()
 
     def get(self, index: int) -> object:
         """
@@ -104,14 +93,30 @@ class Pool(object):
         Returns:
             object: Object.
         """
-        return self.elements[index]['object']
+        return self.elements[index]
+    
+    def log(self) -> None:
+        """
+        Prints the state of the pool, including the IDs of the elements.
+        """
+        print(f"elements: {self.elements}")
+        print(f"x: {self.x}")
+        print(f"p: {self.p}")
+        print(f"\nused indices: {self.used_indices}\nfirst: {self.first}\n")
 
-# Test
 if __name__ == "__main__":
     vertex = Vertex(0)
     vertex2 = Vertex(0)
-    pool = Pool(10, silent=False)
+    vertex3 = Vertex(0)
+    vertex4 = Vertex(0)
+    pool = Pool(10)
     index = pool.occupy(vertex)
     index2 = pool.occupy(vertex2)
     pool.free(index)
-    index3 = pool.occupy(vertex)
+    index3 = pool.occupy(vertex3)
+    index4 = pool.occupy(vertex4)
+    pool.free(index2)
+    pool.occupy(vertex2)
+    
+
+   

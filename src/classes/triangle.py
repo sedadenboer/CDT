@@ -20,21 +20,20 @@ class Triangle(object):
         vr: Vertex to the right.
         vc: Vertex to the center.
     """
-    capacity = 30
 
     def __init__(self) -> None:
         self.ID = None
         self.type = None
 
         # The three triangles sharing and edge with triangle t
-        self.tl = None # left
-        self.tr = None # right
-        self.tc = None # vertical
+        self.tl_ = None # left
+        self.tr_ = None # right
+        self.tc_ = None # vertical
 
         # The three vertices comprising the triangle t
-        self.vl = None # left
-        self.vr = None # right
-        self.vc = None # apex
+        self.vl_ = None # left
+        self.vr_ = None # right
+        self.vc_ = None # apex
 
         # Set the time of the triangle to the time of the base of the triangle
         self.time = self.vl.time if self.vl else None
@@ -46,7 +45,7 @@ class Triangle(object):
         Returns:
             object: Triangle to the left.
         """
-        return self.tl
+        return self.tl_
 
     def get_triangle_right(self) -> object:
         """
@@ -55,7 +54,7 @@ class Triangle(object):
         Returns:
             object: Triangle to the right.
         """
-        return self.tr
+        return self.tr_
 
     def get_triangle_center(self) -> object:
         """
@@ -64,7 +63,7 @@ class Triangle(object):
         Returns:
             object: Triangle to the center.
         """        
-        return self.tc
+        return self.tc_
 
     def set_triangle_left(self, t: object) -> None:
         """
@@ -73,7 +72,7 @@ class Triangle(object):
         Args:
             t (object): Triangle to the left.
         """
-        self.tl = t 
+        self.tl_ = t 
 
     def set_triangle_right(self, t: object) -> None:
         """
@@ -82,7 +81,7 @@ class Triangle(object):
         Args:
             t (object): Triangle to the right.
         """
-        self.tr = t
+        self.tr_ = t
 
     def set_triangle_center(self, t: object) -> None:
         """
@@ -91,7 +90,7 @@ class Triangle(object):
         Args:
             t (object): Triangle to the center.
         """
-        self.tc = t
+        self.tc_ = t
 
     def set_triangles(self, tl: object, tr : object, tc: object) -> None:
         """
@@ -102,9 +101,9 @@ class Triangle(object):
             tr (object): Triangle to the right.
             tc (object): Triangle to the center.
         """
-        self.tl = tl
-        self.tr = tr
-        self.tc = tc
+        self.tl_ = tl
+        self.tr_ = tr
+        self.tc_ = tc
 
     def get_vertex_left(self) -> object:
         """
@@ -116,10 +115,10 @@ class Triangle(object):
         Returns:
             object: Left vertex.
         """
-        if not self.vl:
+        if not self.vl_:
             raise ValueError("No vertex left.")
         
-        return self.vl
+        return self.vl_
 
     def get_vertex_right(self) -> object:
         """
@@ -131,10 +130,10 @@ class Triangle(object):
         Returns:
             object: Right vertex.
         """
-        if not self.vr:
+        if not self.vr_:
             raise ValueError("No vertex right.")
         
-        return self.vr
+        return self.vr_
 
     def get_vertex_center(self) -> object:
         """
@@ -146,10 +145,10 @@ class Triangle(object):
         Returns:
             object: Center vertex.
         """
-        if not self.vc:
+        if not self.vc_:
             raise ValueError("No vertex center.")
         
-        return self.vc
+        return self.vc_
 
     def set_vertex_left(self, v: object) -> None:
         """
@@ -158,7 +157,7 @@ class Triangle(object):
         Args:
             v (object): Left vertex.
         """
-        self.vl = v
+        self.vl_ = v
         self.time = v.time
         self.update_type()
 
@@ -169,7 +168,7 @@ class Triangle(object):
         Args:
             v (object): Right vertex.
         """
-        self.vr = v
+        self.vr_ = v
         self.time = v.time
         self.update_type()
 
@@ -180,7 +179,7 @@ class Triangle(object):
         Args:
             v (object): Center vertex.
         """
-        self.vc = v
+        self.vc_ = v
         self.update_type()
     
     def set_vertices(self, vl: object, vr: object, vc: object) -> None:
@@ -192,9 +191,9 @@ class Triangle(object):
             vr (object): Right vertex.
             vc (object): Center vertex.
         """
-        self.vl = vl
-        self.vr = vr
-        self.vc = vc
+        self.vl_ = vl
+        self.vr_ = vr
+        self.vc_ = vc
         self.time = vl.time
         self.update_type()
 
@@ -214,7 +213,7 @@ class Triangle(object):
         """
         Update the type of the triangle based on the times of the vertices.
         """
-        if self.vl.time < self.vc.time:
+        if self.vl_.time < self.vc_.time:
             self.type = "UP"
         else:
             self.type = "DOWN"

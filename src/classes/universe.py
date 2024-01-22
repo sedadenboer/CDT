@@ -18,18 +18,26 @@ class Universe:
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
     """
+
     def __init__(self, total_time: int, initial_slice_size: int) -> None:
         self.total_time = total_time
         self.initial_slice_size = initial_slice_size
 
+        self.VERTEX_CAPACITY = 50
+        self.TRIANGLE_CAPACITY = 2 * self.VERTEX_CAPACITY
+
         # Create pools for vertices and triangles
-        self.vertex_pool = Pool(capacity=Vertex.capacity)
-        self.triangle_pool = Pool(capacity=Triangle.capacity)
+        self.vertex_pool = Pool(capacity=self.VERTEX_CAPACITY)
+        self.triangle_pool = Pool(capacity=self.TRIANGLE_CAPACITY)
+
+        print("Done creating pools.")
 
         # Create bags
-        self.triangle_add_bag = Bag(pool_capacity=Triangle.capacity)
-        self.four_vertices_bag = Bag(pool_capacity=Vertex.capacity)
-        self.triangle_flip_bag = Bag(pool_capacity=Triangle.capacity)
+        self.triangle_add_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
+        self.four_vertices_bag = Bag(pool_capacity=self.VERTEX_CAPACITY)
+        self.triangle_flip_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
+
+        print("Done creating bags.")
 
         # Total size of the triangulation   
         self.n_vertices = total_time * initial_slice_size
@@ -37,15 +45,6 @@ class Universe:
 
         # Create a dictionary to store the size of each time slice
         self.slice_sizes = {t: initial_slice_size for t in range(total_time)}
-
-        # Create lists to store vertex, triangle, and link objects and other info
-        self.vertices = []
-        self.links = []
-        self.triangles = []
-        self.vertex_neighbors = []
-        self.triangle_neighbours = []
-        self.vertex_links = []
-        self.triangle_links = []
 
         # Initialise the triangulation, store the vertices and triangles
         self.triangulation = self.initialise_triangulation()
@@ -132,15 +131,15 @@ class Universe:
         # Add the left and right triangles to vertex objects
         for triangle in triangle_array.flatten():
             if triangle.is_upwards():
-                triangle.vl.set_triangle_right(triangle)
-                triangle.vr.set_triangle_left(triangle)
+                triangle.vl_.set_triangle_right(triangle)
+                triangle.vr_.set_triangle_left(triangle)
         
-        # Print initial vertices
+        # Print vertices in grid
         for i in range(total_time):
             for j in range(width):
                 print(initial_vertices[i * width + j].ID, end=" ")
             print()
-        print()
+        
        
     def insert_vertex(self, triangle_id: int) -> tuple["Vertex", "Triangle", "Triangle"]:
         """
@@ -282,8 +281,74 @@ class Universe:
 
         return vertex, tr, trc
 
-    def flip_edge(self):
-        pass
+    def flip_edge(self, triangle_id : int) -> tuple["Triangle", "Triangle"]:
+        """
+        Flip an edge in the triangulation.
+
+        Args:
+            triangle (Triangle): Triangle to flip edge in.
+        """
+        # Get the triangle from the triangle pool
+        triangle: Triangle = self.triangle_pool.get(triangle_id)
+
+        # Get neighbouring triangles and vertices
+        tr: Triangle = triangle.get_triangle_right()
+        tl: Triangle = triangle.get_triangle_left()
+        tc: Triangle = triangle.get_triangle_center()
+
+        vl: Vertex = triangle.get_vertex_left()
+        vr: Vertex = triangle.get_vertex_right()
+        vc: Vertex = triangle.get_vertex_center()
+
+        if (triangle.is_upwards() and vr == tr.get_vertex_center()) or (
+            triangle.is_downwards() and vc == tr.get_vertex_left()):
+            # Get right center triangle and right vertex of right triangle
+            trc: Triangle = tr.get_triangle_center()
+            vrr: Vertex = tr.get_vertex_right()
+
+            # Update left and right triangles of vertices of the original triangle
+            if triangle.is_upwards():
+                vl.set_triangle_right(tr)
+                vr.set_triangle_left(tr)
+            else:
+                vrr.set_triangle_left(triangle)
+                vc.set_triangle_right(triangle)
+                
+            # Update center triangles
+            triangle.set_triangle_center(trc)
+            trc.set_triangle_center(triangle)
+            tr.set_triangle_center(tc)
+            tc.set_triangle_center(tr)
+
+            # Update vertices of triangles
+            triangle.set_vertices(vl=vc, vr=vrr, vc=vl)
+            tr.set_vertices(vl=vl, vr=vr, vc=vrr)
+
+            # Remove vertices that previously had degree 4 from the four vertices bag
+            if self.four_vertices_bag.contains(vl.ID):
+                self.four_vertices_bag.remove(vl.ID)
+            if self.four_vertices_bag.contains(vrr.ID):
+                self.four_vertices_bag.remove(vrr.ID)
+
+            # Add vertices that now have degree 4 to the four vertices bag
+            if self.is_four_vertex(vr):
+                self.four_vertices_bag.add(vr.ID)
+            if self.is_four_vertex(vc.ID):
+                self.four_vertices_bag.add(vc.ID)
+
+            # Remove triangles that have teh same type as their right neighbour from the flip bag
+            if self.triangle_flip_bag.contains(triangle.get_triangle_left().ID) and (
+                triangle.type == triangle.get_triangle_left().type):
+                self.triangle_flip_bag.remove(triangle.get_triangle_left().ID)
+            if self.triangle_flip_bag.contains(tr.ID) and tr.type == tr.get_triangle_right().type:
+                self.triangle_flip_bag.remove(tr.ID)
+
+            # Add triangles that have a opposite type than their right neighbour to the flip bag
+            if not self.triangle_flip_bag.contains(triangle.get_triangle_left().ID) and (
+                triangle.type != triangle.get_triangle_left().type):
+                self.triangle_flip_bag.add(triangle.get_triangle_left().ID)
+            if not self.triangle_flip_bag.contains(tr.ID) and tr.type != tr.get_triangle_right().type:
+                self.triangle_flip_bag.add(tr.ID)
 
     def is_four_vertex(self, vertex: "Vertex") -> bool:
         """
@@ -311,21 +376,24 @@ class Universe:
 if __name__ == "__main__":
     universe = Universe(total_time=4, initial_slice_size=4)
 
-    print("triangle_add_bag:", universe.triangle_add_bag)
-    print("triangle_flip_bag:", universe.triangle_flip_bag)
-    print("four vertices bag:", universe.four_vertices_bag)
-    print()
+    print(universe.triangle_pool.used_indices)
+    
+    # print("triangle_add_bag:", universe.triangle_add_bag)
+    # print("triangle_flip_bag:", universe.triangle_flip_bag)
+    # print("four vertices bag:", universe.four_vertices_bag)
+    # print()
     
     inserted_vertex, new_t1, new_t2 = universe.insert_vertex(8)
     inserted_vertex, new_t1, new_t2 = universe.insert_vertex(14)
     removed_vertex, removed_t1, removed_t2 = universe.remove_vertex(17)
 
-    print(universe.vertex_pool.used_indices)
+    # print(universe.vertex_pool.used_indices)
+    # print(universe.triangle_pool.used_indices)
+    # print()
+    # print("triangle_add_bag:", universe.triangle_add_bag)
+    # print("triangle_flip_bag:", universe.triangle_flip_bag)
+    # print("four vertices bag:", universe.four_vertices_bag)
+    # print()
     print(universe.triangle_pool.used_indices)
-    print()
-    print("triangle_add_bag:", universe.triangle_add_bag)
-    print("triangle_flip_bag:", universe.triangle_flip_bag)
-    print("four vertices bag:", universe.four_vertices_bag)
-    print()
     
 

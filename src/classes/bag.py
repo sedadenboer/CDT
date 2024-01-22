@@ -22,17 +22,11 @@ class Bag(object):
     """
     EMPTY = -1
 
-    def __init__(self, pool_capacity: int, silent: bool = True) -> None:
-        self.silent = silent
+    def __init__(self, pool_capacity: int) -> None:
         self.pool_capacity = pool_capacity
         self.elements = [self.EMPTY] * pool_capacity
         self.indices = [self.EMPTY] * pool_capacity
         self.size = 0
-
-        if not self.silent:
-            print("initial bag elements:", self.elements)
-            print("initial bag indices:", self.indices)
-            print()
 
     def add(self, pool_index: int) -> None:
         """
@@ -50,11 +44,6 @@ class Bag(object):
         self.elements[self.size] = pool_index
         self.indices[pool_index] = self.size
         self.size += 1
-
-        if not self.silent:
-            print("added to bag", pool_index, "\nelements:", self.elements)
-            print("bag indices:", self.indices)
-            print()
 
     def remove(self, pool_index: int) -> None:
         """
@@ -82,11 +71,6 @@ class Bag(object):
 
         self.size -= 1
 
-        if not self.silent:
-            print("removed from bag", pool_index, "\nelements:", self.elements)
-            print("bag indices:", self.indices)
-            print()
-
     def pick(self) -> int:
         """
         Pick a random object from Bag.
@@ -99,7 +83,8 @@ class Bag(object):
         elif self.size > 0:
             return self.elements[random.randint(0, self.size - 1)]
         
-        return None # Bag is empty
+        # Bag is empty
+        return None 
     
     def contains(self, pool_index: int) -> bool:
         """
