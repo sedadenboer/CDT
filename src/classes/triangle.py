@@ -36,7 +36,7 @@ class Triangle(object):
         self.vc_ = None # apex
 
         # Set the time of the triangle to the time of the base of the triangle
-        self.time = self.vl.time if self.vl else None
+        self.time = self.vl_.time if self.vl_ else None
 
     def get_triangle_left(self) -> object:
         """

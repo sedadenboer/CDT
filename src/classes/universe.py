@@ -91,9 +91,9 @@ class Universe:
                     vc=initial_vertices[i * width + (j + 1)]
                 )
 
-                # Add triangles to flip bag
-                self.triangle_flip_bag.add(tl_id)
-                self.triangle_flip_bag.add(tr_id)
+                # # Add triangles to flip bag
+                # self.triangle_flip_bag.add(tl_id)
+                # self.triangle_flip_bag.add(tr_id)
 
                 # Add the triangles to the list of triangles
                 triangles.append(tl)
@@ -110,13 +110,21 @@ class Universe:
                 # Set the triangle to the left and right
                 if t.is_upwards():
                     t.set_triangle_right(initial_triangles[i][j + 1])
+                    # If j is not the first triangle in the row
                     if j != 0:
                         t.set_triangle_left(initial_triangles[i][j - 1])
+                    
+                    # Add the triangle to the flip bag
+                    self.triangle_flip_bag.add(t.ID)
                 else:
                     t.set_triangle_left(initial_triangles[i][j - 1])
                     # If j is not the last triangle in the row
                     if j != len(initial_triangles[i]) - 1:
                         t.set_triangle_right(initial_triangles[i][j + 1])
+
+                        # Add the triangle to the flip bag 
+                        # (triangles with no neighbour to the right should be skipped)
+                        self.triangle_flip_bag.add(t.ID)
                     
                 # Set the triangle to the center
                 if i != 0 and t.is_upwards():
@@ -336,7 +344,7 @@ class Universe:
             if self.is_four_vertex(vc.ID):
                 self.four_vertices_bag.add(vc.ID)
 
-            # Remove triangles that have teh same type as their right neighbour from the flip bag
+            # Remove triangles that have the same type as their right neighbour from the flip bag
             if self.triangle_flip_bag.contains(triangle.get_triangle_left().ID) and (
                 triangle.type == triangle.get_triangle_left().type):
                 self.triangle_flip_bag.remove(triangle.get_triangle_left().ID)
@@ -375,7 +383,7 @@ class Universe:
 # Example usage:
 if __name__ == "__main__":
     universe = Universe(total_time=4, initial_slice_size=4)
-
+    print(universe.triangle_flip_bag.elements)
     print(universe.triangle_pool.used_indices)
     
     # print("triangle_add_bag:", universe.triangle_add_bag)
