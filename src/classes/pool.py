@@ -99,6 +99,15 @@ class Pool(object):
         """
         return self.elements[index]
     
+    def get_number_occupied(self) -> int:
+        """
+        Gets the number of occupied spaces in the pool.
+
+        Returns:
+            int: Number of occupied spaces.
+        """
+        return len(self.used_indices)
+    
     def log(self):
         """
         Prints the state of the pool, including the IDs of the elements.

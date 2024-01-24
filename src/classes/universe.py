@@ -24,21 +24,17 @@ class Universe:
         self.total_time = total_time
         self.initial_slice_size = initial_slice_size
 
-        self.VERTEX_CAPACITY = 50
+        self.VERTEX_CAPACITY = 1000000
         self.TRIANGLE_CAPACITY = 2 * self.VERTEX_CAPACITY
 
         # Create pools for vertices and triangles
         self.vertex_pool = Pool(capacity=self.VERTEX_CAPACITY)
         self.triangle_pool = Pool(capacity=self.TRIANGLE_CAPACITY)
 
-        print("Done creating pools.")
-
         # Create bags
         self.triangle_add_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
         self.four_vertices_bag = Bag(pool_capacity=self.VERTEX_CAPACITY)
         self.triangle_flip_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
-
-        print("Done creating bags.")
 
         # Total size of the triangulation   
         self.n_vertices = total_time * initial_slice_size
@@ -132,19 +128,19 @@ class Universe:
                 vl.set_triangle_left(triangle)
                 vr.set_triangle_right(triangle)
 
-        # Print vertices in grid
-        for i in range(total_time):
-            for j in range(width):
-                print(initial_vertices[i * width + j].ID, end=" ")
-            print()
+        # # Print vertices in grid
+        # for i in range(total_time):
+        #     for j in range(width):
+        #         print(initial_vertices[i * width + j].ID, end=" ")
+        #     print()
         
-        # Print the triangles and their left, right, center vertices
-        for t in initial_triangles:
-            print(f"triangle: {t.ID}")
-            print(f"vertex left, right, center: {t.vl_.ID, t.vr_.ID, t.vc_.ID}")
-            print(f"triangle left, right, center: {t.tl_.ID, t.tr_.ID, t.tc_.ID}")
-            print()
-            print()
+        # # Print the triangles and their left, right, center vertices
+        # for t in initial_triangles:
+        #     print(f"triangle: {t.ID}")
+        #     print(f"vertex left, right, center: {t.vl_.ID, t.vr_.ID, t.vc_.ID}")
+        #     print(f"triangle left, right, center: {t.tl_.ID, t.tr_.ID, t.tc_.ID}")
+        #     print()
+        #     print()
         
     def insert_vertex(self, triangle_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
