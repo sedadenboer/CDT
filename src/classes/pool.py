@@ -5,7 +5,11 @@
 # 
 # Description:
 
-from vertex import Vertex
+from __future__ import annotations
+from typing import TYPE_CHECKING, List, Optional, Set, Union
+if TYPE_CHECKING:
+    from vertex import Vertex
+    from triangle import Triangle
 
 
 class Pool(object):
@@ -20,16 +24,16 @@ class Pool(object):
         used_indices (set): Set of indices of used objects.
         first (int): Index of first free object.
     """
-    def __init__(self, capacity: int) -> None:
-        self.capacity = capacity
-        self.elements = [None for _ in range(self.capacity)]
-        self.x = [0] * self.capacity
-        self.p = [i + 1 for i in range(self.capacity)]
+    def __init__(self, capacity: int):
+        self.capacity: int = capacity
+        self.elements: List[Union[Triangle, Vertex, None]] = [None for _ in range(self.capacity)]
+        self.x: List[int] = [0] * self.capacity
+        self.p: List[Optional[int]] = [i + 1 for i in range(self.capacity)]
         self.p[-1] = None
-        self.used_indices = set()
-        self.first = 0
+        self.used_indices: Set[int] = set()
+        self.first: Optional[int] = 0
     
-    def occupy(self, obj: object) -> int:
+    def occupy(self, obj: Union[Triangle, Vertex]) -> int:
         """
         Occupies a space in the pool and returns the index of the object.
 
@@ -41,10 +45,7 @@ class Pool(object):
             raise Exception("Pool is full.")
 
         # Get index of first free object
-        index = self.first
-
-        # Set index of object
-        obj.ID = index
+        index: int = self.first
 
         # Mark object as used
         self.elements[index] = obj
@@ -56,9 +57,12 @@ class Pool(object):
         # Update first free object
         self.first = self.p[index]
 
+        # Set index of object
+        obj.ID = index
+
         return index
 
-    def free(self, index: int) -> None:
+    def free(self, index: int):
         """
         Frees a space in the pool.
 
@@ -83,7 +87,7 @@ class Pool(object):
         self.p[index] = self.first
         self.first = index
 
-    def get(self, index: int) -> object:
+    def get(self, index: int) -> Union[Triangle, Vertex, None]:
         """
         Gets an object from the pool.
 
@@ -91,11 +95,11 @@ class Pool(object):
             index (int): Index of object to get.
 
         Returns:
-            object: Object.
+            Union[Triangle, Vertex, None]: Object.
         """
         return self.elements[index]
     
-    def log(self) -> None:
+    def log(self):
         """
         Prints the state of the pool, including the IDs of the elements.
         """
@@ -103,20 +107,3 @@ class Pool(object):
         print(f"x: {self.x}")
         print(f"p: {self.p}")
         print(f"\nused indices: {self.used_indices}\nfirst: {self.first}\n")
-
-if __name__ == "__main__":
-    vertex = Vertex(0)
-    vertex2 = Vertex(0)
-    vertex3 = Vertex(0)
-    vertex4 = Vertex(0)
-    pool = Pool(10)
-    index = pool.occupy(vertex)
-    index2 = pool.occupy(vertex2)
-    pool.free(index)
-    index3 = pool.occupy(vertex3)
-    index4 = pool.occupy(vertex4)
-    pool.free(index2)
-    pool.occupy(vertex2)
-    
-
-   

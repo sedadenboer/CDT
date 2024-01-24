@@ -8,6 +8,10 @@
 import random
 import numpy as np
 from universe import Universe
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from triangle import Triangle
+
 
 class Simulation:
     """
@@ -17,8 +21,7 @@ class Simulation:
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
     """
-
-    def __init__(self, universe = Universe(total_time=3, initial_slice_size=3), time_step = 0, lambd = np.log(2), target_volume = 0, epsilon = 0.02):
+    def __init__(self, universe: Universe, time_step: int, lambd: float, target_volume: int, epsilon: float):
         self.universe = universe
         self.time_step = time_step
         self.lambd = lambd
@@ -162,8 +165,52 @@ class Simulation:
 
         return True
 
-    def flip_move(self):
-        pass
+    def flip_move(self) -> bool:
+        """
+        Propose a move to flip an edge in the triangulation.
+
+        Returns:
+            bool: True if move was accepted, False otherwise.
+        """
+        ntf = self.universe.triangle_flip_bag.get_number_occupied()
+
+        if ntf == 0:
+            return False
+        
+        # Pick a random triangle from the bag of triangles to flip
+        triangle_id = self.universe.triangle_flip_bag.pick()
+        triangle: Triangle = self.universe.triangle_pool.get(triangle_id)
+
+        # Flip triangle
+        tmp = ntf
+
+        if triangle.type == triangle.get_triangle_right().get_triangle_right().type:
+            tmp += 1
+        else:
+            tmp -= 1
+        
+        acceptance_ratio = 1.0 * ntf / tmp
+
+        # MCMC check
+        if acceptance_ratio < 1.0:
+            random_number = random.uniform(0.0, 1.0)
+            if random_number > acceptance_ratio:
+                return False
+            
+        # Flip edge
+        self.universe.flip_edge(triangle_id)
+
+        return True
 
     def measure_observables(self):
         pass
+
+
+if __name__ == "__main__":
+    simulation = Simulation(
+        universe=Universe(total_time=3, initial_slice_size=3),
+        time_step=0,
+        lambd=np.log(2),
+        target_volume=0,
+        epsilon=0.02
+    )

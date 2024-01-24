@@ -6,6 +6,7 @@
 # Description:
 
 import random
+from typing import List, Optional
 
 
 class Bag(object):
@@ -22,13 +23,13 @@ class Bag(object):
     """
     EMPTY = -1
 
-    def __init__(self, pool_capacity: int) -> None:
+    def __init__(self, pool_capacity: int):
         self.pool_capacity = pool_capacity
         self.elements = [self.EMPTY] * pool_capacity
         self.indices = [self.EMPTY] * pool_capacity
         self.size = 0
 
-    def add(self, pool_index: int) -> None:
+    def add(self, pool_index: int):
         """
         Add pool index to Bag.
 
@@ -45,7 +46,7 @@ class Bag(object):
         self.indices[pool_index] = self.size
         self.size += 1
 
-    def remove(self, pool_index: int) -> None:
+    def remove(self, pool_index: int):
         """
         Remove pool index from Bag.
 
@@ -71,7 +72,7 @@ class Bag(object):
 
         self.size -= 1
 
-    def pick(self) -> int:
+    def pick(self) -> Optional[int]:
         """
         Pick a random object from Bag.
 
@@ -114,17 +115,11 @@ class Bag(object):
             print(f"size index {i}: {self.elements[i]}")
 
         print("--")
-
-    def __iter__(self) -> iter:
-        return iter(self.elements[:self.size])
-    
-    def __len__(self) -> int:
-        return self.size
     
     def __str__(self) -> str:
         return str(self.elements)
     
-
+    
 # Test
 if __name__ == "__main__":
     bag = Bag(10)
