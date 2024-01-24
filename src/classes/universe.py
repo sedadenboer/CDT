@@ -43,6 +43,10 @@ class Universe:
         # Create a dictionary to store the size of each time slice
         self.slice_sizes = {t: initial_slice_size for t in range(total_time)}
 
+        # Number of triangles with a certain orientation
+        self.triangle_up_count = 0
+        self.triangle_down_count = 0
+
         # Initialise the triangulation, store the vertices and triangles
         self.initialise_triangulation()
 
@@ -54,6 +58,8 @@ class Universe:
         total_time = self.total_time
         width = self.initial_slice_size
 
+        # TODO: Generate random triangulations
+        
         # Create initial vertices
         initial_vertices = []
 
@@ -95,6 +101,10 @@ class Universe:
                 # Add the triangles to the list of triangles
                 initial_triangles.append(tl)
                 initial_triangles.append(tr)
+
+                # Update count of up and down oriented triangles
+                self.triangle_up_count += 1
+                self.triangle_down_count += 1
         
         # Set triangle connectivity
         for i in range(total_time):
@@ -199,6 +209,10 @@ class Universe:
             self.triangle_flip_bag.add(triangle2.ID)
             self.triangle_flip_bag.remove(tc.ID)
         
+        # Update count of up and down oriented triangles
+        self.triangle_up_count += 1
+        self.triangle_down_count += 1
+            
         return new_vertex, triangle1, triangle2
     
     def remove_vertex(self, vertex_id: int) -> tuple[Vertex, Triangle, Triangle]:
@@ -253,6 +267,10 @@ class Universe:
         if self.triangle_flip_bag.contains(trc.ID):
             self.triangle_flip_bag.remove(trc.ID)
             self.triangle_flip_bag.add(tlc.ID)
+
+        # Update count of up and down oriented triangles
+        self.triangle_up_count -= 1
+        self.triangle_down_count -= 1
 
         return vertex, tr, trc
 
