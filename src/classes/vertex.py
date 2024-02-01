@@ -25,8 +25,8 @@ class Vertex(object):
         self.time = time
         self.ID: int
         # The two (2,1)-triangles sharing an edge with vertex v
-        self.tr_: Triangle
-        self.tl_: Triangle
+        self.tr_: Triangle = None
+        self.tl_: Triangle = None
 
     def set_triangle_left(self, t: Triangle) -> None:
         """
@@ -52,16 +52,28 @@ class Vertex(object):
         """
         Get the (2,1)-triangle to the left of this vertex.
 
+        Raises:
+            ValueError: If there is no left triangle.
+            
         Returns:
             Triangle: (2,1)-triangle to the left.
         """
+        if not self.tl_:
+            raise ValueError("No triangle left.")
+        
         return self.tl_
     
     def get_triangle_right(self) -> Triangle:
         """
         Get the (2,1)-triangle to the right of this vertex.
 
+        Raises:
+            ValueError: If there is no right triangle.
+
         Returns:
             Triangle: (2,1)-triangle to the right.
-        """      
+        """
+        if not self.tr_:
+            raise ValueError("No triangle right.")
+        
         return self.tr_

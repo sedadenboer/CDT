@@ -8,11 +8,12 @@
 import random
 import numpy as np
 import time
+import matplotlib.pyplot as plt
+import seaborn as sns
 from universe import Universe
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from triangle import Triangle
-
 
 class Simulation:
     """
@@ -122,6 +123,7 @@ class Simulation:
 
         # Pick a random vertex from the bag of triangles
         triangle_id = self.universe.triangle_add_bag.pick()
+        # print(f"trying to add id: {triangle_id}")
 
         # Add vertex to triangulation
         self.universe.insert_vertex(triangle_id)
@@ -159,6 +161,7 @@ class Simulation:
         
         # Pick a random vertex from the bag of vertices of degree four
         vertex_id = self.universe.four_vertices_bag.pick()
+        # print(f"try to delete id: {vertex_id}")
         vertex = self.universe.vertex_pool.get(vertex_id)
 
         # Make sure that the slice size is at least 4
@@ -167,6 +170,8 @@ class Simulation:
 
         # Delete vertex from triangulation
         self.universe.remove_vertex(vertex_id)
+
+        # print(f"DELETE updated 4-vertex bag: {self.universe.four_vertices_bag.used_indices}")
 
         return True
 
@@ -229,15 +234,17 @@ class Simulation:
             self.flip_move()
             self.flip_count += 1
 
-    def progress_universe(self, steps: int):
+    def progress_universe(self, steps: int, silence: bool = False):
         """
         Progress the universe by a given number of steps.
 
         Args:
             steps (int): Number of steps to progress the universe.
+            silence (bool, optional): Whether to print progress. Defaults to False.
         """
-        print("Initial number of vertices: %d"%(self.universe.vertex_pool.get_number_occupied()))
-        print("Initial number of triangles: %d"%(self.universe.triangle_pool.get_number_occupied()))
+        if not silence:
+            print("Initial number of vertices: {}".format(self.universe.vertex_pool.get_number_occupied()))
+            print("Initial number of triangles: {}".format(self.universe.triangle_pool.get_number_occupied()))
 
         start = time.time()
 
@@ -246,19 +253,22 @@ class Simulation:
 
         end = time.time()
 
-        print("...")
-        print("Progressing the Universe %d steps took %d seconds"%(steps, end-start))
-        print("Add count: %d, delete count: %d, flip count: %d"%(self.add_count, self.delete_count, self.flip_count))
-        print("Total number of vertices: %d"%(self.universe.vertex_pool.get_number_occupied()))
-        print("Total number of triangles: %d"%(self.universe.triangle_pool.get_number_occupied()))
+        if not silence:
+            print("...")
+            print("Progressing the Universe {} steps took {} seconds".format(steps, end-start))
+            print("Add count: {}, delete count: {}, flip count: {}".format(self.add_count, self.delete_count, self.flip_count))
+            print("Total number of vertices: {}".format(self.universe.vertex_pool.get_number_occupied()))
+            print("Total number of triangles: {}".format(self.universe.triangle_pool.get_number_occupied()))
+            print("Number of order 4 vertices: {}".format(self.universe.four_vertices_bag.get_number_occupied()))
+            print("Ratio of vertices and order 4 vertices: {:.5f}".format(self.universe.vertex_pool.get_number_occupied() / self.universe.four_vertices_bag.get_number_occupied()))
+            print()
+            
 
 if __name__ == "__main__":
-    simulation = Simulation(
-        universe=Universe(total_time=20, initial_slice_size=20),
-        time_step=0,
-        lambd=np.log(2),
-        target_volume=0,
-        epsilon=0.02
-    )
+    
+    # Set up the universe
+    universe = Universe(total_time=100, initial_slice_size=100)
+    simulation = Simulation(universe, time_step=1, lambd=0.5, target_volume=0, epsilon=0.0)
 
-    simulation.progress_universe(100)
+    # Progress the universe
+    simulation.progress_universe(100000, silence=False)

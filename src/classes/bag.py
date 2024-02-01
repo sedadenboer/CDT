@@ -6,7 +6,7 @@
 # Description:
 
 import random
-from typing import List, Optional
+from typing import List, Optional, Set
 
 
 class Bag(object):
@@ -27,6 +27,7 @@ class Bag(object):
         self.pool_capacity = pool_capacity
         self.elements = [self.EMPTY] * pool_capacity
         self.indices = [self.EMPTY] * pool_capacity
+        self.used_indices: Set[int] = set()
         self.size = 0
 
     def add(self, pool_index: int):
@@ -44,6 +45,7 @@ class Bag(object):
         
         self.elements[self.size] = pool_index
         self.indices[pool_index] = self.size
+        self.used_indices.add(pool_index)
         self.size += 1
 
     def remove(self, pool_index: int):
@@ -70,6 +72,7 @@ class Bag(object):
         self.elements[self.size - 1] = self.EMPTY
         self.indices[pool_index] = self.EMPTY
 
+        self.used_indices.remove(pool_index)
         self.size -= 1
 
     def pick(self) -> Optional[int]:
@@ -82,7 +85,7 @@ class Bag(object):
         if self.size == 0:
             raise ValueError("Bag is empty.")
         elif self.size > 0:
-            return self.elements[random.randint(0, self.size - 1)]
+            return random.choice(list(self.used_indices))
         
         # Bag is empty
         return None 
@@ -97,6 +100,9 @@ class Bag(object):
         Returns:
             bool: True if pool index is in bag, False otherwise.
         """
+        if pool_index < 0 or pool_index >= self.pool_capacity:
+            return False
+        
         return self.indices[pool_index] != self.EMPTY
 
     def get_number_occupied(self) -> int:
@@ -118,16 +124,3 @@ class Bag(object):
     
     def __str__(self) -> str:
         return str(self.elements)
-    
-    
-# Test
-if __name__ == "__main__":
-    bag = Bag(10)
-    bag.add(1)
-    bag.add(2)
-    bag.add(3)
-    bag.add(4)
-
-    print(bag.elements)
-    print(bag.indices)
-    print(bag.pick())

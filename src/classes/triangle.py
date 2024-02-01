@@ -6,7 +6,7 @@
 # Description:
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 if TYPE_CHECKING:
     from vertex import Vertex
 
@@ -31,44 +31,81 @@ class Triangle:
         self.type: str
 
         # The three triangles sharing and edge with triangle t
-        self.tl_: Triangle # left
-        self.tr_: Triangle # right
-        self.tc_: Triangle # vertical
+        self.tl_: Triangle = None # left
+        self.tr_: Triangle = None # right
+        self.tc_: Triangle = None # vertical
 
         # The three vertices comprising the triangle t
-        self.vl_: Vertex # left
-        self.vr_: Vertex # right
-        self.vc_: Vertex # apex
+        self.vl_: Vertex = None # left
+        self.vr_: Vertex = None # right
+        self.vc_: Vertex = None # apex
 
         # Time can only be determined after initialisation
-        self.time: int
+        self.time: int = None
 
     def get_triangle_left(self) -> Triangle:
         """
         Get the triangle object to the left of this triangle.
 
+        Raises:
+            ValueError: If there is no left triangle.
+
         Returns:
             Triangle: Triangle to the left.
         """
+        if not self.tl_:
+            raise ValueError("No triangle left.")
+        
         return self.tl_
 
     def get_triangle_right(self) -> Triangle:
         """
         Get the triangle object to the right of this triangle.
 
+        Raises:
+            ValueError: If there is no right triangle.
+
         Returns:
             Triangle: Triangle to the right.
         """
+        if not self.tr_:
+            raise ValueError("No triangle right.")
+        
         return self.tr_
 
     def get_triangle_center(self) -> Triangle:
         """
         Get the triangle object to the center of this triangle.
 
+        Raises:
+            ValueError: If there is no center triangle.
+
         Returns:
             Triangle: Triangle to the center.
         """        
+        if not self.tc_:
+            raise ValueError("No triangle center.")
+        
         return self.tc_
+    
+    def get_triangles(self) -> Tuple[Triangle, Triangle, Triangle]:
+        """
+        Get the triangles to the left, right and center of this triangle.
+
+        Raises:
+            ValueError: If there are no triangles.
+
+        Returns:
+            Tuple[Triangle, Triangle, Triangle]: Triangles to the left, right and center.
+        """
+        if not self.tl_:
+            raise ValueError("No triangle left.")
+        if not self.tr_:
+            raise ValueError("No triangle right.")
+        if not self.tc_:
+            raise ValueError("No triangle center.")
+        
+        return self.tl_, self.tr_, self.tc_
 
     def set_triangle_left(self, t: Triangle) -> None:
         """
@@ -176,6 +213,18 @@ class Triangle:
         
         return self.vc_
 
+    def get_vertices(self) -> Tuple[Vertex, Vertex, Vertex]:
+        """
+        Get the vertices of this triangle.
+
+        Raises:
+            ValueError: If there are no vertices.
+
+        Returns:
+            Tuple[Vertex, Vertex, Vertex]: Left, right and center vertex.
+        """  
+        return self.vl_, self.vr_, self.vc_
+    
     def set_vertex_left(self, v: Vertex) -> None:
         """
         Set the left vertex of this triangle. Also updates the time of the triangle,

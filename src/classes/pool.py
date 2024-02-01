@@ -99,6 +99,24 @@ class Pool(object):
         """
         return self.elements[index]
     
+    def contains(self, index: int) -> bool:
+        """
+        Checks if the pool contains an object with the given index.
+
+        Args:
+            index (int): Index of object to check.
+
+        Returns:
+            bool: True if pool contains object, False otherwise.
+        """
+        if index < 0 or index >= self.capacity:
+            return False
+        
+        if not self.elements[index]:
+            return False
+        
+        return True
+    
     def get_number_occupied(self) -> int:
         """
         Gets the number of occupied spaces in the pool.
