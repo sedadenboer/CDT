@@ -8,8 +8,6 @@
 import random
 import numpy as np
 import time
-import matplotlib.pyplot as plt
-import seaborn as sns
 from universe import Universe
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
@@ -35,6 +33,7 @@ class Simulation:
         self.add_count = 0
         self.delete_count = 0
         self.flip_count = 0
+        self.succes_count = 0
 
     def attempt_move(self) -> bool:
         """
@@ -43,38 +42,38 @@ class Simulation:
         Returns:
             bool: True if move was accepted, False otherwise.
         """
-        # Step 1: Initialisation
+        # Initialisation
         cum_freqs = [0, 0]
         tot_freq = 0
         prev_cum_freq = 0
 
-        # Step 2: Calculate cumulative frequencies
+        # Calculate cumulative frequencies for the move types
         for move_freq in self.move_freqs:
-            total_freq += move_freq
+            tot_freq += move_freq
             cum_freqs.append(prev_cum_freq + move_freq)
             prev_cum_freq = cum_freqs[-1]
         
-        # Step 3: Pick a random number
-        move = random.randint(0, tot_freq - 1)
-        bin_choice = random.randint(0, 1)
+        # Pick a random number and a random bin to determine the move type
+        move = np.random.default_rng().integers(0, tot_freq)
+        bin_choice = np.random.default_rng().integers(0, 2)
 
-        # Step 4: Determine the move type
+        # Determine the move type
         if move < cum_freqs[0]:
             # Choose between add and delete based on bin_choice
-            move_type = 1 if bin_choice == 0 else 2
-        else:
+            if bin_choice == 0:
+                if self.add_move():
+                    self.add_count += 1
+                    self.succes_count += 1
+                    return 1
+                elif self.delete_move():
+                    self.delete_count += 1
+                    self.succes_count += 1
+                    return 2
+        elif move >= cum_freqs[0]:
             # Chooste flip move
-            move_type = 3
-
-        # Step 5: Perform the move
-        if move_type == 1:
-            if self.add_move():
-                return 1
-        elif move_type == 2:
-            if self.delete_move():
-                return 2
-        elif move_type == 3:
             if self.flip_move():
+                self.flip_count += 1
+                self.succes_count += 1
                 return 3
         
         # If no move is executed (due to rejection)
@@ -84,7 +83,8 @@ class Simulation:
         """
         Perform a sweep of the simulation.
         """
-        uniform_int = random.randint(0, 3)
+        # Pick random uniform number
+        uniform_int = random.uniform(0, 3)
 
         # Step 1: Perform moves
         moves = [0, 0, 0, 0]
@@ -123,7 +123,6 @@ class Simulation:
 
         # Pick a random vertex from the bag of triangles
         triangle_id = self.universe.triangle_add_bag.pick()
-        # print(f"trying to add id: {triangle_id}")
 
         # Add vertex to triangulation
         self.universe.insert_vertex(triangle_id)
@@ -161,7 +160,6 @@ class Simulation:
         
         # Pick a random vertex from the bag of vertices of degree four
         vertex_id = self.universe.four_vertices_bag.pick()
-        # print(f"try to delete id: {vertex_id}")
         vertex = self.universe.vertex_pool.get(vertex_id)
 
         # Make sure that the slice size is at least 4
@@ -170,8 +168,6 @@ class Simulation:
 
         # Delete vertex from triangulation
         self.universe.remove_vertex(vertex_id)
-
-        # print(f"DELETE updated 4-vertex bag: {self.universe.four_vertices_bag.used_indices}")
 
         return True
 
@@ -214,25 +210,6 @@ class Simulation:
 
     def measure_observables(self):
         pass
-    
-    def single_step(self):
-        """
-        Perform a single step of the simulation. Chances 
-        between adding, deleting and flipping are equal.
-        """
-        # Pick a random move
-        move = random.randint(0, 2)
-
-        # Perform the move
-        if move == 0:
-            self.add_move()
-            self.add_count += 1
-        elif move == 1:
-            self.delete_move()
-            self.delete_count += 1
-        elif move == 2:
-            self.flip_move()
-            self.flip_count += 1
 
     def progress_universe(self, steps: int, silence: bool = False):
         """
@@ -243,32 +220,33 @@ class Simulation:
             silence (bool, optional): Whether to print progress. Defaults to False.
         """
         if not silence:
-            print("Initial number of vertices: {}".format(self.universe.vertex_pool.get_number_occupied()))
-            print("Initial number of triangles: {}".format(self.universe.triangle_pool.get_number_occupied()))
+            print(f"Initial number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
+            print(f"Initial number of triangles: {self.universe.triangle_pool.get_number_occupied()}")
 
         start = time.time()
 
         for _ in range(steps):
-            self.single_step()
+            self.attempt_move()
 
         end = time.time()
 
         if not silence:
             print("...")
-            print("Progressing the Universe {} steps took {} seconds".format(steps, end-start))
-            print("Add count: {}, delete count: {}, flip count: {}".format(self.add_count, self.delete_count, self.flip_count))
-            print("Total number of vertices: {}".format(self.universe.vertex_pool.get_number_occupied()))
-            print("Total number of triangles: {}".format(self.universe.triangle_pool.get_number_occupied()))
-            print("Number of order 4 vertices: {}".format(self.universe.four_vertices_bag.get_number_occupied()))
-            print("Ratio of vertices and order 4 vertices: {:.5f}".format(self.universe.vertex_pool.get_number_occupied() / self.universe.four_vertices_bag.get_number_occupied()))
+            print(f"Progressing the Universe {steps} steps took {end-start} seconds")
+            print(f"Rejected: {steps - self.succes_count}. Success rate: {self.succes_count / steps:.5f}")
+            print(f"Add count: {self.add_count}, delete count: {self.delete_count}, flip count: {self.flip_count}")
+            print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
+            print(f"Total number of triangles: {self.universe.triangle_pool.get_number_occupied()}")
+            print(f"Number of order 4 vertices: {self.universe.four_vertices_bag.get_number_occupied()}")
+            print(f"Ratio of vertices and order 4 vertices: {self.universe.vertex_pool.get_number_occupied() / self.universe.four_vertices_bag.get_number_occupied():.5f}")
             print()
             
 
 if __name__ == "__main__":
     
     # Set up the universe
-    universe = Universe(total_time=100, initial_slice_size=100)
-    simulation = Simulation(universe, time_step=1, lambd=0.5, target_volume=0, epsilon=0.0)
+    universe = Universe(total_time=32, initial_slice_size=64)
+    simulation = Simulation(universe, time_step=1, lambd=np.log(2), target_volume=0, epsilon=0.0)
 
     # Progress the universe
     simulation.progress_universe(100000, silence=False)

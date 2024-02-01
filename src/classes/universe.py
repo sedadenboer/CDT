@@ -11,6 +11,7 @@ from vertex import Vertex
 from triangle import Triangle
 from pool import Pool
 from bag import Bag
+import pickle
 
 
 class Universe:
@@ -18,9 +19,32 @@ class Universe:
     The Universe class represents the current state of the triangulation
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
+
+    Attributes:
+        total_time (int): Total number of time slices.
+        initial_slice_size (int): Initial size of the time slices.
+        VERTEX_CAPACITY (int): Maximum number of vertices in the triangulation.
+        TRIANGLE_CAPACITY (int): Maximum number of triangles in the triangulation.
+        vertex_pool (Pool): Pool of vertices.
+        triangle_pool (Pool): Pool of triangles.
+        triangle_add_bag (Bag): Bag of triangles that can be added.
+        four_vertices_bag (Bag): Bag of vertices that have degree 4.
+        triangle_flip_bag (Bag): Bag of triangles that can be flipped.
+        n_vertices (int): Total number of vertices in the triangulation.
+        n_triangles (int): Total number of triangles in the triangulation.
+        slice_sizes (dict): Dictionary with the size of each time slice.
+        triangle_up_count (int): Number of triangles with an upwards orientation.
+        triangle_down_count (int): Number of triangles with a downwards orientation.
     """
 
     def __init__(self, total_time: int, initial_slice_size: int, VERTEX_CAPACITY: int = 100000):
+        if total_time < 3:
+            raise ValueError("Total time must be greater than 3.")
+        if initial_slice_size < 3:
+            raise ValueError("Initial slice size must be greater than 3.")
+        if VERTEX_CAPACITY < 9:
+            raise ValueError("Vertex capacity must be greater than 9.")
+        
         self.total_time = total_time
         self.initial_slice_size = initial_slice_size
 
@@ -359,48 +383,38 @@ class Universe:
                 vertex.get_triangle_left().get_triangle_center().get_triangle_right() 
                 == vertex.get_triangle_right().get_triangle_center())
 
+    def get_total_size(self) -> int:
+        """
+        Get the total size of the triangulation.
+
+        Returns:
+            int: Total size of the triangulation.
+        """
+        return sum(self.slice_sizes.values())
+    
     def get_triangulation_state(self):
         """
         Get the current state of the triangulation.
         """
         pass
 
+    def save_to_file(self, filename):
+        """
+        Save the state of the Universe to a file using pickle.
 
-# Example usage:
-if __name__ == "__main__":
-    universe = Universe(total_time=4, initial_slice_size=4)
-    
-    print("triangle pool:", universe.triangle_pool.used_indices)
-    print("vertex pool:", universe.vertex_pool.used_indices)
-    print("triangle_add_bag:", universe.triangle_add_bag)
-    print("triangle_flip_bag:", universe.triangle_flip_bag)
-    print("four vertices bag:", universe.four_vertices_bag)
-    print()
-    
-    inserted_vertex, new_t1, new_t2 = universe.insert_vertex(triangle_id=10)
+        Args:
+            filename (str): The name of the file to save the state to.
+        """
+        with open(filename, 'wb') as file:
+            pickle.dump(self.__dict__, file)
 
-    print("triangle pool:", universe.triangle_pool.used_indices)
-    print("vertex pool:", universe.vertex_pool.used_indices)
-    print("triangle_add_bag:", universe.triangle_add_bag)
-    print("triangle_flip_bag:", universe.triangle_flip_bag)
-    print("four vertices bag:", universe.four_vertices_bag)
-    print()
-    
-    removed_vertex, removed_t1, removed_t2 = universe.remove_vertex(vertex_id=16)
-    
-    print("triangle pool:", universe.triangle_pool.used_indices)
-    print("vertex pool:", universe.vertex_pool.used_indices)
-    print("triangle_add_bag:", universe.triangle_add_bag)
-    print("triangle_flip_bag:", universe.triangle_flip_bag)
-    print("four vertices bag:", universe.four_vertices_bag)
-    print()
-    # print(universe.vertex_pool.used_indices)
-    # print(universe.triangle_pool.used_indices)
-    # print()
-    # print("triangle_add_bag:", universe.triangle_add_bag)
-    # print("triangle_flip_bag:", universe.triangle_flip_bag)
-    # print("four vertices bag:", universe.four_vertices_bag)
-    # print()
-    # print(universe.triangle_pool.used_indices)
-    
+    def load_from_file(self, filename):
+        """
+        Load the state of the Universe from a file using pickle.
 
+        Args:
+            filename (str): The name of the file to load the state from.
+        """
+        with open(filename, 'rb') as file:
+            state = pickle.load(file)
+        self.__dict__.update(state)
