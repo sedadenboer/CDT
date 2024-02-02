@@ -224,19 +224,6 @@ class Triangle:
             Tuple[Vertex, Vertex, Vertex]: Left, right and center vertex.
         """  
         return self.vl_, self.vr_, self.vc_
-    
-    def set_vertex_left(self, v: Vertex) -> None:
-        """
-        Set the left vertex of this triangle. Also updates the time of the triangle,
-        and sets the triangle to the right of the left vertex.
-
-        Args:
-            v (Vertex): Left vertex.
-        """
-        self.vl_ = v
-        self.time = v.time
-        if self.is_upwards():
-            v.set_triangle_right(self)
 
     def set_vertex_right(self, v: Vertex) -> None:
         """
@@ -248,18 +235,14 @@ class Triangle:
         """
         self.vr_ = v
         self.time = v.time
+        self.update_type()
+
+        # Update vertex connections in space
+        v.set_neighbour_left(self.vl_)
+
         if self.is_upwards():
             v.set_triangle_left(self)
 
-    def set_vertex_center(self, v: Vertex) -> None:
-        """
-        Set the center vertex of this triangle.
-
-        Args:
-            v (Vertex): Center vertex.
-        """
-        self.vc_ = v
-    
     def set_vertices(self, vl: Vertex, vr: Vertex, vc: Vertex) -> None:
         """
         Set the vertices of this triangle. Also updates the time of the triangle,
@@ -277,9 +260,22 @@ class Triangle:
         self.time = vl.time
         self.update_type()
 
+        # Save vertex-vertex connections in space
+        vl.set_neighbour_right(vr)
+        vr.set_neighbour_left(vl)
+
         if self.is_upwards():
+            # Save vertex-triangle connections for upwards triangles
             vl.set_triangle_right(self)
             vr.set_triangle_left(self)
+
+            # Save vertex-vertex connections in time for upwards triangles
+            vl.add_future_neighbour(vc)
+            vr.add_future_neighbour(vc)
+        else:
+            # Save vertex-vertex connections in time for downwards triangles
+            vl.add_past_neighbour(vc)
+            vr.add_past_neighbour(vc)
 
     def is_upwards(self) -> bool:
         """

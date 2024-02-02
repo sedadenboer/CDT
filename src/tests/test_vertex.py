@@ -73,3 +73,43 @@ def test_value_errors():
     
     with pytest.raises(ValueError, match="No triangle right."):
         vertex.get_triangle_right()
+
+def test_space_neighbours():
+    """
+    Test if the space neighbours are set correctly.
+    """
+    v1 = Vertex(1)
+    v2 = Vertex(2)
+    v3 = Vertex(3)
+
+    v1.set_neighbour_left(v2)
+    v1.set_neighbour_right(v3)
+
+    assert v1.get_neighbour_left() == v2
+    assert v1.get_neighbour_right() == v3
+    assert v2.get_neighbour_right() == v1
+    assert v3.get_neighbour_left() == v1
+
+def test_future_past_neighbours():
+    """
+    Test if the future and past neighbours are set and deleted correctly.
+    """
+    v1 = Vertex(1)
+    v2 = Vertex(2)
+    v3 = Vertex(3)
+
+    v1.add_future_neighbour(v2)
+    v1.add_past_neighbour(v3)
+
+    assert v1.get_future_neighbours() == [v2]
+    assert v1.get_past_neighbours() == [v3]
+    assert v2.get_past_neighbours() == [v1]
+    assert v3.get_future_neighbours() == [v1]
+
+    v1.delete_future_neighbour(v2)
+    v3.delete_future_neighbour(v1)
+
+    assert v1.get_future_neighbours() == []
+    assert v1.get_past_neighbours() == []
+    assert v2.get_past_neighbours() == []
+    assert v3.get_future_neighbours() == []

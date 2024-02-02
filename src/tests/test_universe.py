@@ -58,6 +58,77 @@ def test_initialization(universe):
     assert v_15.get_triangle_left() == universe.triangle_pool.get(index=28)
     assert v_15.get_triangle_right() == universe.triangle_pool.get(index=30)
 
+def test_vertex_neighbours(universe):
+    """
+    Test the vertex neighbours of the Universe class by checking
+    if the vertex objects are correctly updated with their neighbours
+    in the initial Triangulation and after doing some moves.
+    """
+    # Get vertices
+    for id in universe.vertex_pool.used_indices:
+        vertex = universe.vertex_pool.get(index=id)
+        vl, vr = vertex.get_space_neighbours()
+        assert vl.get_neighbour_right() == vertex
+        assert vr.get_neighbour_left() == vertex
+
+    # More concrete tests
+    v_0 = universe.vertex_pool.get(index=0)
+    assert v_0.get_space_neighbours() == (
+        universe.vertex_pool.get(index=3), universe.vertex_pool.get(index=1))
+    assert universe.vertex_pool.get(index=4) in v_0.get_future_neighbours()
+    assert universe.vertex_pool.get(index=7) in v_0.get_future_neighbours()
+    assert universe.vertex_pool.get(index=12) in v_0.get_past_neighbours()
+    assert universe.vertex_pool.get(index=13) in v_0.get_past_neighbours()
+
+    v_15 = universe.vertex_pool.get(index=15)
+    assert v_15.get_space_neighbours() == (
+        universe.vertex_pool.get(index=14), universe.vertex_pool.get(index=12))
+    assert universe.vertex_pool.get(index=2) in v_15.get_future_neighbours()
+    assert universe.vertex_pool.get(index=3) in v_15.get_future_neighbours()
+    assert universe.vertex_pool.get(index=8) in v_15.get_past_neighbours()
+    assert universe.vertex_pool.get(index=11) in v_15.get_past_neighbours()
+
+    # After some moves
+    t_16, t_17 = universe.flip_edge(triangle_id=16)
+    t_10, t_11 = universe.flip_edge(triangle_id=10)
+
+    v_8 = universe.vertex_pool.get(index=8)
+    v_9 = universe.vertex_pool.get(index=9)
+    v_12 = universe.vertex_pool.get(index=12)
+    v_13 = universe.vertex_pool.get(index=13)
+    v_5 = universe.vertex_pool.get(index=5)
+    v_6 = universe.vertex_pool.get(index=6)
+    v_10 = universe.vertex_pool.get(index=10)
+
+    # Check if the neighbours are updated correctly after 2x flip move
+    assert v_9.get_space_neighbours() == (v_8, v_10)
+    assert v_13 in v_9.get_future_neighbours()
+    assert v_12 not in v_9.get_future_neighbours()
+    assert v_5 in v_9.get_past_neighbours()
+    assert v_6 not in v_9.get_past_neighbours()
+    
+    inserted_vertex, new_t1, new_t2 = universe.insert_vertex(triangle_id=17)
+
+    # Check if inserting the vertex updates the neighbours correctly
+    assert v_9.get_space_neighbours() == (inserted_vertex, v_10)
+    assert v_8.get_space_neighbours() == (universe.vertex_pool.get(index=11), inserted_vertex)
+    assert inserted_vertex in v_5.get_future_neighbours()
+    assert v_13 in inserted_vertex.get_future_neighbours()
+    assert inserted_vertex in v_13.get_past_neighbours()
+    for v in [v_8, v_9, v_10, inserted_vertex]:
+        assert v in v_5.get_future_neighbours()
+    for v in [v_8, v_9, v_10, inserted_vertex]:
+        assert v in v_13.get_past_neighbours()
+
+    removed_vertex, removed_t1, removed_t2 = universe.remove_vertex(vertex_id=inserted_vertex.ID)
+
+    # Check if removing the vertex updates the neighbours correctly to how it was
+    assert v_9.get_space_neighbours() == (v_8, v_10)
+    assert v_13 in v_9.get_future_neighbours()
+    assert v_12 not in v_9.get_future_neighbours()
+    assert v_5 in v_9.get_past_neighbours()
+    assert v_6 not in v_9.get_past_neighbours()
+
 def test_insert_vertex(universe):
     """
     Test insert_vertex() operation in the Universe class by
@@ -76,6 +147,10 @@ def test_insert_vertex(universe):
 
     # Perform insert_vertex operation
     inserted_vertex, new_t1, new_t2 = universe.insert_vertex(triangle_id=8)
+
+    # Orientation check 
+    assert new_t1.is_upwards() == True
+    assert new_t2.is_downwards() == True
 
     # Check if vertices are updated correctly
     assert t.get_vertex_right() == inserted_vertex
@@ -133,7 +208,7 @@ def test_remove_vertex(universe):
 
     # Then perform remove_vertex operation
     removed_vertex, removed_t1, removed_t2 = universe.remove_vertex(vertex_id=inserted_vertex.ID)
-
+    
     t = universe.triangle_pool.get(index=8)
     tc = t.get_triangle_center()
 
@@ -185,6 +260,10 @@ def test_flip_edge(universe):
     # Perform flip_edge operation
     flipped_t1, flipped_t2 = universe.flip_edge(triangle_id=8)
 
+    # Orientation check
+    assert flipped_t1.is_downwards() == True
+    assert flipped_t2.is_upwards() == True
+
     # Check if vertices are updated correctly
     assert t.get_vertex_right() == tr_vr
     assert t.get_vertex_left() == vc
@@ -202,6 +281,10 @@ def test_flip_edge(universe):
     
     # Flip back
     flipped_t3, flipped_t4 = universe.flip_edge(triangle_id=8)
+
+    # Orientation check
+    assert flipped_t3.is_upwards() == True
+    assert flipped_t4.is_downwards() == True
 
     assert flipped_t3 == t
     assert flipped_t4 == tr
@@ -262,3 +345,21 @@ def test_flip_four_vertices(universe):
 
     for id in [3, 9, 17]:
         assert not universe.triangle_flip_bag.contains(id)
+
+def test_total_size(universe):
+    """
+    Test if the total size of the universe is calculated correctly.
+    """
+    assert universe.get_total_size() == 16
+
+    # After flip move
+    t_16, t_17 = universe.flip_edge(triangle_id=16)
+    assert universe.get_total_size() == 16
+
+    # After add move
+    inserted_vertex, new_t1, new_t2 = universe.insert_vertex(triangle_id=8)
+    assert universe.get_total_size() == 17
+
+    # After remove move
+    removed_vertex, removed_t1, removed_t2 = universe.remove_vertex(vertex_id=inserted_vertex.ID)
+    assert universe.get_total_size() == 16

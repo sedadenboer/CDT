@@ -197,6 +197,14 @@ class Universe:
         triangle.set_vertex_right(new_vertex)
         tc.set_vertex_right(new_vertex)
 
+        # Update the new vertex's past and future neighbours, and vice versa
+        if triangle.is_upwards():
+            new_vertex.add_future_neighbour(triangle.get_vertex_center())
+            new_vertex.add_past_neighbour(tc.get_vertex_center())
+        else:
+            new_vertex.add_past_neighbour(triangle.get_vertex_center())
+            new_vertex.add_future_neighbour(tc.get_vertex_center())
+
         # Create two new triangles
         triangle1 = Triangle()
         triangle2 = Triangle()
@@ -221,11 +229,9 @@ class Universe:
         if triangle1.type != triangle1.get_triangle_right().type:
             self.triangle_flip_bag.remove(triangle_id)
             self.triangle_flip_bag.add(triangle1.ID)
-            # print(f"ADD removed {triangle_id} from flip bag and added {triangle1.ID}")
         if triangle2.type != triangle2.get_triangle_right().type:
             self.triangle_flip_bag.remove(tc.ID)
             self.triangle_flip_bag.add(triangle2.ID)
-            # print(f"ADD removed {tc.ID} from flip bag and added {triangle2.ID}\n")
     
         # Update count of up and down oriented triangles
         self.triangle_up_count += 1
@@ -270,6 +276,14 @@ class Universe:
 
         # Update the size of this triangulation layer
         self.slice_sizes[vertex.time] -= 1
+
+        # Update the future and past neighbours of the center vertices
+        if tl.is_upwards():
+            vertex.delete_future_neighbour(tl.get_vertex_center())
+            vertex.delete_past_neighbour(tlc.get_vertex_center())
+        else:
+            vertex.delete_past_neighbour(tl.get_vertex_center())
+            vertex.delete_future_neighbour(tlc.get_vertex_center())
 
         # Remove deleted triangles from the add bag
         self.triangle_add_bag.remove(tr.ID)
@@ -341,6 +355,12 @@ class Universe:
         # Update vertices of triangles
         triangle.set_vertices(vl=vc, vr=vrr, vc=vl)
         tr.set_vertices(vl=vl, vr=vr, vc=vrr)
+
+        # Update the future and past neighbours of the vertices
+        if triangle.is_upwards():
+            triangle.get_vertex_left().delete_future_neighbour(tr.get_vertex_right())
+        else:
+            triangle.get_vertex_left().delete_past_neighbour(tr.get_vertex_right())
 
         # Remove vertices that previously had degree 4 from the four vertices bag and add new ones
         if self.four_vertices_bag.contains(vl.ID):

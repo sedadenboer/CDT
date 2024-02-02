@@ -66,37 +66,16 @@ def test_set_triangles():
     assert triangle2.tr_ == triangle1
     assert triangle3.tl_ == triangle1
 
-def test_set_vertex_left():
-    """
-    Test if a vertex is set correctly to the left of a triangle.
-    """
-    triangle = Triangle()
-    triangle.type = "UP"
-    vertex = Vertex(time=0)
-    triangle.set_vertex_left(vertex)
-    assert triangle.vl_ == vertex
-    assert triangle.time == vertex.time
-
 def test_set_vertex_right():
     """
     Test if a vertex is set correctly to the right of a triangle.
     """
     triangle = Triangle()
-    triangle.type = "UP"
+    triangle.set_vertices(Vertex(time=0), Vertex(time=0), Vertex(time=1))
     vertex = Vertex(time=0)
     triangle.set_vertex_right(vertex)
     assert triangle.vr_ == vertex
     assert triangle.time == vertex.time
-
-def test_set_vertex_center():
-    """
-    Test if a vertex is set correctly to the center of a triangle.
-    """
-    triangle = Triangle()
-    triangle.type = "UP"
-    vertex = Vertex(time=0)
-    triangle.set_vertex_center(vertex)
-    assert triangle.vc_ == vertex
 
 def test_set_vertices():
     """
@@ -121,7 +100,6 @@ def test_update_type():
     """
     triangle = Triangle()
     triangle.set_vertices(Vertex(time=0), Vertex(time=0), Vertex(time=1))
-    triangle.update_type()
     assert triangle.is_downwards() == False
     assert triangle.is_upwards() == True
     triangle.vl_.time = 1
