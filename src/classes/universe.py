@@ -412,11 +412,45 @@ class Universe:
         """
         return sum(self.slice_sizes.values())
     
+    def sort_vertices_periodic(self, vertices):
+        # Check if the list is empty or has only one element
+        if len(vertices) <= 1:
+            return vertices
+
+        # Start with any vertex
+        start_vertex = vertices[0]
+        current_vertex = start_vertex
+
+        # Traverse the neighbors until reaching the starting vertex
+        sorted_vertices = [start_vertex]
+
+        while current_vertex.get_neighbour_right() != start_vertex:
+            next_vertex = current_vertex.get_neighbour_right()
+            sorted_vertices.append(next_vertex)
+            current_vertex = next_vertex
+
+        return sorted_vertices
+
     def get_triangulation_state(self):
         """
         Get the current state of the triangulation.
         """
-        pass
+        vertex_sheet = {}
+        for id in self.vertex_pool.used_indices:
+            vertex = self.vertex_pool.get(id)
+
+            # Add vertex to dictionary in key with time as index
+            if vertex.time in vertex_sheet:
+                vertex_sheet[vertex.time].append(vertex)
+            else:
+                vertex_sheet[vertex.time] = [vertex]
+        
+        # Sort the vertices in each time slice in the dictionary based on their right neighbour
+        # lop through the dictionary and sort the vertices in each time slice
+        for key in vertex_sheet:
+            vertex_sheet[key] = self.sort_vertices_periodic(vertex_sheet[key])
+
+        return vertex_sheet
 
     def save_to_file(self, filename):
         """
