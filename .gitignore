@@ -3,4 +3,5 @@
 src/loll
 src/klad
 saved_universes
-plots
+src/visualisation/plots
+visualisation/saved_universes

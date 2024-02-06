@@ -12,6 +12,14 @@ from triangle import Triangle
 from pool import Pool
 from bag import Bag
 import pickle
+import resource
+import sys
+
+max_rec = 0x100000
+
+# May segfault without this line. 0x100 is a guess at the size of each stack frame.
+resource.setrlimit(resource.RLIMIT_STACK, [0x100 * max_rec, resource.RLIM_INFINITY])
+sys.setrecursionlimit(max_rec)
 
 
 class Universe:
@@ -37,7 +45,7 @@ class Universe:
         triangle_down_count (int): Number of triangles with a downwards orientation.
     """
 
-    def __init__(self, total_time: int, initial_slice_size: int, VERTEX_CAPACITY: int = 100000):
+    def __init__(self, total_time: int, initial_slice_size: int, VERTEX_CAPACITY: int = 1000000):
         if total_time < 3:
             raise ValueError("Total time must be greater than 3.")
         if initial_slice_size < 3:
@@ -410,7 +418,7 @@ class Universe:
         Returns:
             int: Total size of the triangulation.
         """
-        return sum(self.slice_sizes.values())
+        return self.vertex_pool.get_number_occupied()
     
     def sort_vertices_periodic(self, vertices):
         # Check if the list is empty or has only one element

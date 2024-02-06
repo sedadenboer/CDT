@@ -22,19 +22,23 @@ class Simulation:
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
     """
-    def __init__(self, universe: Universe, time_step: int, lambd: float, target_volume: int, epsilon: float):
+    def __init__(self, universe: Universe, lambd: float, target_volume: int, epsilon: float):
         self.universe = universe
-        self.time_step = time_step
         self.lambd = lambd
         self.target_volume = target_volume
         self.epsilon = epsilon
         self.current_time = 0
         self.move_freqs = [1, 1]
         self.SWEEPSIZE = 100
+        self.current_succes = 0
         self.add_count = 0
         self.delete_count = 0
         self.flip_count = 0
-        self.succes_count = 0
+        self.acceptance_rates = []
+        self.volume_changes = []
+        self.delete_rates = []
+        self.add_rates = []
+        self.flip_rates = []
 
     def attempt_move(self) -> bool:
         """
@@ -64,22 +68,31 @@ class Simulation:
             if bin_choice == 0:
                 if self.add_move():
                     self.add_count += 1
-                    self.succes_count += 1
                     return 1
-                elif self.delete_move():
+            else:
+                if self.delete_move():
                     self.delete_count += 1
-                    self.succes_count += 1
                     return 2
         elif move >= cum_freqs[0]:
             # Chooste flip move
             if self.flip_move():
                 self.flip_count += 1
-                self.succes_count += 1
                 return 3
         
+        self.current_succes = self.add_count + self.delete_count + self.flip_count
+
         # If no move is executed (due to rejection)
         return 0
-            
+    
+    def get_total_moves(self) -> int:
+        """
+        Get the total number of performed moves.
+
+        Returns:
+            int: Total number of performed moves.
+        """
+        return self.add_count + self.delete_count + self.flip_count
+
     def sweep(self) -> None:
         """
         Perform a sweep of the simulation.
@@ -109,7 +122,7 @@ class Simulation:
         # Compute acceptance ratio
         n0 = self.universe.vertex_pool.get_number_occupied()
         n0_four = self.universe.four_vertices_bag.get_number_occupied()
-        acceptance_ratio = n0 / (n0_four + 1.0) * np.exp(-2 * self.lambd)
+        acceptance_ratio = (n0 / (n0_four + 1.0)) * np.exp(-2 * self.lambd)
 
         # Volume constraint
         if self.target_volume > 0:
@@ -146,7 +159,7 @@ class Simulation:
             return False
         
         # Compute acceptance ratio
-        acceptance_ratio = n0_four / (n0 - 1.0) * np.exp(2 * self.lambd)
+        acceptance_ratio = ((n0_four + 1.0) / n0) * np.exp(2 * self.lambd)
 
         # Volume constraint
         if self.target_volume > 0:
@@ -212,7 +225,7 @@ class Simulation:
     def measure_observables(self):
         pass
 
-    def progress_universe(self, steps: int, silence: bool = False):
+    def progress_universe(self, steps: int, silence: bool = True):
         """
         Progress the universe by a given number of steps.
 
@@ -226,15 +239,20 @@ class Simulation:
 
         start = time.time()
 
-        for _ in range(steps):
+        for step in range(1, steps + 1):
             self.attempt_move()
+            self.acceptance_rates.append(self.current_succes / step)
+            self.volume_changes.append(self.universe.get_total_size())
+            self.delete_rates.append(self.delete_count / step)
+            self.add_rates.append(self.add_count / step)
+            self.flip_rates.append(self.flip_count / step)
 
         end = time.time()
 
         if not silence:
             print("...")
             print(f"Progressing the Universe {steps} steps took {end-start} seconds")
-            print(f"Rejected: {steps - self.succes_count}. Success rate: {self.succes_count / steps:.5f}")
+            print(f"Rejected: {steps - self.current_succes}. Success rate: {self.current_succes / steps:.5f}")
             print(f"Add count: {self.add_count}, delete count: {self.delete_count}, flip count: {self.flip_count}")
             print(f"Ratio delete / add: {self.delete_count / self.add_count:.5f}. Ratio add + delete / flip: {(self.add_count + self.delete_count) / self.flip_count:.5f}")
             print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
@@ -242,13 +260,13 @@ class Simulation:
             print(f"Number of order 4 vertices: {self.universe.four_vertices_bag.get_number_occupied()}")
             print(f"Ratio of order 4 vertices and normal vertices: {self.universe.four_vertices_bag.get_number_occupied() / self.universe.vertex_pool.get_number_occupied():.5f}")
             print()
-            
+
 
 if __name__ == "__main__":
     
     # Set up the universe
     universe = Universe(total_time=20, initial_slice_size=20)
-    simulation = Simulation(universe, time_step=1, lambd=np.log(2), target_volume=0, epsilon=0.0)
+    simulation = Simulation(universe, lambd=np.log(2), target_volume=0, epsilon=0.0)
 
     # Progress the universe
-    simulation.progress_universe(100000, silence=False)
+    simulation.progress_universe(10000, silence=False)
