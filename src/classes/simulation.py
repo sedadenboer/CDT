@@ -28,38 +28,40 @@ class Simulation:
         self.target_volume = target_volume
         self.epsilon = epsilon
         self.current_time = 0
-        self.move_freqs = [1, 1]
         self.SWEEPSIZE = 100
-        self.current_succes = 0
         self.add_count = 0
         self.delete_count = 0
         self.flip_count = 0
+        self.current_success = 0
+        self.move_freqs = [1, 1]
         self.acceptance_rates = []
         self.volume_changes = []
         self.delete_rates = []
         self.add_rates = []
         self.flip_rates = []
 
-    def attempt_move(self) -> bool:
+    def attempt_move(self) -> int:
         """
         Attempt a move.
 
         Returns:
-            bool: True if move was accepted, False otherwise.
+            int: Move type (0: no move, 1: add, 2: delete, 3: flip).
         """
-        # Initialisation
+        # Two bins for add/delete, and one for flip
         cum_freqs = [0, 0]
         tot_freq = 0
         prev_cum_freq = 0
 
-        # Calculate cumulative frequencies for the move types
+        # Calculate cumulative frequencies for the move types based on their frequencies
         for i in range(len(self.move_freqs)):
+            # Every time a move is attempted, the total frequency is updated
             tot_freq += self.move_freqs[i]
             cum_freqs[i] = prev_cum_freq + self.move_freqs[i]
             prev_cum_freq = cum_freqs[i]
 
         # Pick a random number and a random bin to determine the move type
         move = np.random.default_rng().integers(0, tot_freq)
+        # Pick a random bin [0,1] to determine between add and delete
         bin_choice = np.random.default_rng().integers(0, 2)
 
         # Determine the move type
@@ -78,8 +80,6 @@ class Simulation:
             if self.flip_move():
                 self.flip_count += 1
                 return 3
-        
-        self.current_succes = self.add_count + self.delete_count + self.flip_count
 
         # If no move is executed (due to rejection)
         return 0
@@ -92,25 +92,6 @@ class Simulation:
             int: Total number of performed moves.
         """
         return self.add_count + self.delete_count + self.flip_count
-
-    def sweep(self) -> None:
-        """
-        Perform a sweep of the simulation.
-        """
-        # Pick random uniform number
-        uniform_int = random.uniform(0, 3)
-
-        # Step 1: Perform moves
-        moves = [0, 0, 0, 0]
-        for _ in range(self.SWEEPSIZE * self.target_volume):
-            moves[self.attempt_move()] += 1
-
-        # Make sure that the triangle volume is equal to the target volume
-        while self.universe.triangle_pool.get_number_occupied() != self.target_volume:
-            self.attempt_move()
-        
-        # Step 2: Measure observables
-        self.measure_observables()
 
     def add_move(self) -> bool:
         """
@@ -223,6 +204,7 @@ class Simulation:
         return True
 
     def measure_observables(self):
+        #TODO
         pass
 
     def progress_universe(self, steps: int, silence: bool = True):
@@ -234,14 +216,15 @@ class Simulation:
             silence (bool, optional): Whether to print progress. Defaults to False.
         """
         if not silence:
-            print(f"Initial number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
-            print(f"Initial number of triangles: {self.universe.triangle_pool.get_number_occupied()}")
+            print(f"Vertices: {self.universe.vertex_pool.get_number_occupied()}, Triangles: {self.universe.triangle_pool.get_number_occupied()}")
 
         start = time.time()
 
         for step in range(1, steps + 1):
-            self.attempt_move()
-            self.acceptance_rates.append(self.current_succes / step)
+            move_type = self.attempt_move()
+            if move_type != 0:
+                self.current_success += 1
+            self.acceptance_rates.append(self.current_success / step)
             self.volume_changes.append(self.universe.get_total_size())
             self.delete_rates.append(self.delete_count / step)
             self.add_rates.append(self.add_count / step)
@@ -252,12 +235,11 @@ class Simulation:
         if not silence:
             print("...")
             print(f"Progressing the Universe {steps} steps took {end-start} seconds")
-            print(f"Rejected: {steps - self.current_succes}. Success rate: {self.current_succes / steps:.5f}")
+            print(f"Rejections: {steps - self.current_success}, Acceptance rate: {self.current_success / steps:.5f}")
             print(f"Add count: {self.add_count}, delete count: {self.delete_count}, flip count: {self.flip_count}")
             print(f"Ratio delete / add: {self.delete_count / self.add_count:.5f}. Ratio add + delete / flip: {(self.add_count + self.delete_count) / self.flip_count:.5f}")
             print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
             print(f"Total number of triangles: {self.universe.triangle_pool.get_number_occupied()}")
-            print(f"Number of order 4 vertices: {self.universe.four_vertices_bag.get_number_occupied()}")
             print(f"Ratio of order 4 vertices and normal vertices: {self.universe.four_vertices_bag.get_number_occupied() / self.universe.vertex_pool.get_number_occupied():.5f}")
             print()
 
