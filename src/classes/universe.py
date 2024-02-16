@@ -460,6 +460,22 @@ class Universe:
 
         return vertex_sheet
 
+    def print_state(self):
+        """
+        Print the current state of the triangulation.
+        """
+        state = self.get_triangulation_state()
+        vertex_sheet = list(state.values())
+
+        # Add the edges from the space, future, and past neighbors in the vertex objects
+        for y, row in enumerate(vertex_sheet):
+            for x, col in enumerate(row):
+                space_neighbours = [neighbour.ID for neighbour in col.get_space_neighbours()]
+                future_neighbours = [neighbour.ID for neighbour in col.get_future_neighbours()]
+                past_neighbours = [neighbour.ID for neighbour in col.get_past_neighbours()]
+                print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
+            print()
+
     def save_to_file(self, filename):
         """
         Save the state of the Universe to a file using pickle.

@@ -10,11 +10,143 @@ sys.path.append('..')
 from classes.universe import Universe
 from classes.simulation import Simulation
 import numpy as np
-import networkx as nx
 import matplotlib.pyplot as plt
+import vtk
+import networkx as nx
 
 
-def get_triangulation_matrix_periodic(universe: Universe, silent: bool = True):
+def torus_vtk(universe: Universe):
+    """
+    Visualise the triangulation of a 1+1D torus using VTK.
+
+    Args:
+        universe (Universe): Universe to visualise.
+    """
+    state = universe.get_triangulation_state()
+    vertex_sheet = list(state.values())
+
+    # Create vtk object from the universe
+    points = vtk.vtkPoints()
+    lines = vtk.vtkCellArray()
+    triangles = vtk.vtkCellArray()
+    colors = vtk.vtkUnsignedCharArray()
+    colors.SetNumberOfComponents(3)
+    colors.SetName("Colors")
+
+    # Get radius list 
+    n_per_time = [len(row) for row in vertex_sheet]
+    print(n_per_time)
+    print(len(vertex_sheet))
+
+    # Get a node
+    all_nodes_indices = universe.vertex_pool.used_indices
+    all_nodes = [universe.vertex_pool.elements[i] for i in all_nodes_indices]
+    pivot_node = all_nodes[0]
+
+    # Create the torus points
+    for i in range(universe.total_time):
+        num_points = n_per_time[i]
+        for j in range(num_points):
+            # Calculate x, y, z coordinates for each point
+            radius = num_points / (2 * np.pi)
+            theta = 2 * np.pi * j / num_points
+            phi = 2 * np.pi * i / len(n_per_time)
+            x = (radius + 10 + radius * np.cos(theta)) * np.cos(phi)
+            y = (radius + 10 + radius * np.cos(theta)) * np.sin(phi)
+            z = radius * np.sin(theta)
+
+            # Add the point to the vtk object
+            points.InsertPoint(pivot_node.ID, (x, y, z))
+            pivot_node = pivot_node.get_neighbour_right()
+        
+        # Move to the next time
+        if i < universe.total_time - 1:
+            pivot_node = pivot_node.get_future_neighbours()[0]
+
+    # Create the lines
+    for node in all_nodes:
+        # Add right neighbours
+        right_neighbour = node.get_neighbour_right()
+        line = vtk.vtkLine()
+        line.GetPointIds().SetId(0, node.ID)
+        line.GetPointIds().SetId(1, right_neighbour.ID)
+        lines.InsertNextCell(line)
+        colors.InsertNextTuple3(0, 0, 0)
+
+        for future_node in node.get_future_neighbours():
+            line = vtk.vtkLine()
+            line.GetPointIds().SetId(0, future_node.ID)
+            line.GetPointIds().SetId(1, node.ID)
+            lines.InsertNextCell(line)
+            colors.InsertNextTuple3(0, 0, 0)
+    
+    # Add triangles
+    all_triangles_indices = universe.triangle_pool.used_indices
+    all_triangles = [universe.triangle_pool.elements[i] for i in all_triangles_indices]
+    
+    for triangle in all_triangles:
+        left, right, center = triangle.get_vertices()
+        triangle_vtk = vtk.vtkTriangle()
+        triangle_vtk.GetPointIds().SetId(0, left.ID)
+        triangle_vtk.GetPointIds().SetId(1, right.ID)
+        triangle_vtk.GetPointIds().SetId(2, center.ID)
+        triangles.InsertNextCell(triangle_vtk)
+        if triangle.is_upwards():
+            colors.InsertNextTuple3(255, 0, 0)
+        else:
+            colors.InsertNextTuple3(0, 0, 255)
+
+    # Create a polydata object to store everything
+    linesPolyData = vtk.vtkPolyData()
+    linesPolyData.SetPoints(points)
+    linesPolyData.SetLines(lines)
+    linesPolyData.SetPolys(triangles)
+    linesPolyData.GetCellData().SetScalars(colors)
+    linesPolyData.Modified()
+
+    # Create a mapper and actor
+    mapper = vtk.vtkPolyDataMapper()
+    mapper.SetInputData(linesPolyData)
+    mapper.Update()
+    actor = vtk.vtkActor()
+    actor.SetMapper(mapper)
+
+    axes_actor = vtk.vtkAxesActor()
+    axes = vtk.vtkOrientationMarkerWidget()
+    axes.SetOrientationMarker(axes_actor)
+
+    # Create a renderer, render window, and interactor
+    renderer = vtk.vtkRenderer()
+    renderer.AddActor(actor)
+    renderer.SetBackground(0, 0, 0)
+    renderer.ResetCamera()
+
+    renWin = vtk.vtkRenderWindow()
+    renWin.AddRenderer(renderer)
+    renWin.SetSize(450, 350)
+    renWin.SetWindowName("Causal Dynamical Triangulation 1+1D")
+
+    iren = vtk.vtkRenderWindowInteractor()
+    iren.SetInteractorStyle(vtk.vtkInteractorStyleTrackballCamera())
+    iren.SetRenderWindow(renWin)
+    axes.SetInteractor(iren)
+    axes.EnabledOn()
+    axes.InteractiveOn()
+
+    iren.Initialize()
+    iren.Start()
+
+def get_triangulation_matrix_periodic(universe: Universe, silent: bool = True) -> list:
+    """
+    Get the triangulation matrix for a periodic universe.
+
+    Args:
+        universe (Universe): Universe to get the triangulation matrix from.
+        silent (bool, optional): If matrix should be printed. Defaults to True.
+
+    Returns:
+        list: periodic triangulation matrix
+    """
     vertex_sheet = universe.get_triangulation_state()
     matrix = list(vertex_sheet.values())
 
@@ -32,18 +164,60 @@ def get_triangulation_matrix_periodic(universe: Universe, silent: bool = True):
             for vertex in row:
                 print(vertex.ID, end=" ")
             print()
-
+            
     return matrix
+    
+def plot_triangulation_flat(universe: Universe):
+    """
+    Plot the triangulation network.
 
-def make_graph(universe: Universe):
-    # state = universe.get_triangulation_state()
-    # vertex_sheet = list(state.values())
-    vertex_sheet = get_triangulation_matrix_periodic(universe)
+    Args:
+        universe (Universe): Universe to plot.
+    """
+    state = universe.get_triangulation_state()
+    vertex_sheet = list(state.values())
+
+    # Al triangles
+    all_triangles_indices = universe.triangle_pool.used_indices
+    all_triangles = [universe.triangle_pool.elements[i] for i in all_triangles_indices]
+
+    # Get a triangle at time = 0
+    row_0 = vertex_sheet[0]
+    vertex_t0 = row_0[0]
+    triangle_t0 = vertex_t0.get_triangle_right()
+
+    # Add to graph the first triangle
     G = nx.Graph()
-    pos=nx.spring_layout(G)
-    for y, row in enumerate(vertex_sheet):
-        for x, col in enumerate(row):
-            G.add_node(col.ID, pos=(x, y))
+    for vertex in triangle_t0.get_vertices():
+        G.add_node(vertex.ID)
+    G.add_edge(triangle_t0.vl_.ID, triangle_t0.vr_.ID)
+    G.add_edge(triangle_t0.vr_.ID, triangle_t0.vc_.ID)
+    G.add_edge(triangle_t0.vc_.ID, triangle_t0.vl_.ID)
+    
+    for i in range(len(all_triangles)):
+        triangle = all_triangles[i]
+        for vertex in triangle.get_vertices():
+            G.add_node(vertex.ID)
+        G.add_edge(triangle.vl_.ID, triangle.vr_.ID)
+        G.add_edge(triangle.vr_.ID, triangle.vc_.ID)
+        G.add_edge(triangle.vc_.ID, triangle.vl_.ID)
+        
+    # Plot the graph
+    pos = nx.spring_layout(G, dim=2)
+    nx.draw(G, pos, with_labels=False, node_size=5, node_color='skyblue', font_size=8, font_weight='bold', edge_color='black', linewidths=1, width=1, alpha=0.7)
+    plt.show()
+
+
+if __name__ == "__main__":
+    universe = Universe(40, 50)
+
+    simulation = Simulation(universe, lambd=np.log(2))
+    simulation.progress_universe(1000, silence=True)
+
+    # plot_triangulation_flat(universe)
+
+    state = simulation.universe.get_triangulation_state()
+    vertex_sheet = list(state.values())
 
     # Add the edges from the space, future, and past neighbors in the vertex objects
     for y, row in enumerate(vertex_sheet):
@@ -51,50 +225,8 @@ def make_graph(universe: Universe):
             space_neighbours = [neighbour.ID for neighbour in col.get_space_neighbours()]
             future_neighbours = [neighbour.ID for neighbour in col.get_future_neighbours()]
             past_neighbours = [neighbour.ID for neighbour in col.get_past_neighbours()]
-            # print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
-            for neighbour in col.get_space_neighbours():
-                G.add_edge(col.ID, neighbour.ID, color='blue', weight=2)
-            for neighbour in col.get_future_neighbours():
-                G.add_edge(col.ID, neighbour.ID, color='red', weight=1)
-            # for neighbour in col.get_past_neighbours():
-            #     G.add_edge(col.ID, neighbour.ID, color='red', weight=1)
-         
-     # Plot the graph with toroidal coordinates and colored edges
-    pos = nx.get_node_attributes(G, 'pos')
-    edges = G.edges()
-    edge_colors = [G[u][v]['color'] for u, v in edges]
-    weights = [G[u][v]['weight'] for u,v in edges]
-    pos = nx.spring_layout(G)
-    nx.draw(G, pos, with_labels=False, edge_color=edge_colors, node_size=1, node_color='black', width=weights)
-    plt.show()
+            print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
+        print()
 
-    return G
+    torus_vtk(simulation.universe)
 
-def plot_triangulation(universe: Universe):
-    vertex_sheet = get_triangulation_matrix_periodic(universe, silent=True)
-    fig, ax = plt.subplots()
-    for y, row in enumerate(vertex_sheet):
-        for x, col in enumerate(row):
-            ax.plot(x, y, 'o', color='black')
-            ax.text(x, y, str(col.ID), fontsize=12)
-
-            # Color the last vertex differently in each row and also the full last row
-            if y == len(vertex_sheet) - 1 or x == len(row) - 1:
-                ax.plot(x, y, 'o', color='red')
-                ax.text(x, y, str(col.ID), fontsize=12)
-
-    ax.set_xlabel('x')
-    ax.set_ylabel('y')
-    plt.show()
-
-def plot_torus(universe):
-    vertex_sheet = get_triangulation_matrix_periodic(universe)
-
-    
-
-if __name__ == "__main__":
-    universe = Universe(10, 10)
-    make_graph(universe)
-    simulation = Simulation(universe, lambd=np.log(2), target_volume=0, epsilon=0)
-    simulation.progress_universe(100, silence=False)
-    make_graph(simulation.universe)

@@ -159,6 +159,9 @@ class Vertex(object):
         Args:
             v (Vertex): Vertex to add as past neighbour.
         """
+        if self.time != 0:
+            assert v.time == self.time - 1, "Past neighbour has wrong time."
+        
         if not v in self.past_neighbours:
             self.past_neighbours.append(v)
             v.future_neighbours.append(self)

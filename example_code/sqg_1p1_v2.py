@@ -424,7 +424,6 @@ class Universe(object):
                         triangle.GetPointIds().SetId(2,e.right_neighbour.ID)
                         triangles.InsertNextCell(triangle)
                         colors.InsertNextTuple3(0,0,255)
-                
         
         # Create a polydata to store everything in
         linesPolyData = vtk.vtkPolyData()

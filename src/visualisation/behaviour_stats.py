@@ -28,7 +28,7 @@ def plot_acceptance(chains: int, steps: int, lambd: int, total_time: int, initia
 
     for _ in range(chains):
         universe = Universe(total_time=total_time, initial_slice_size=initial_slice_size)
-        simulation = Simulation(universe, lambd=lambd, target_volume=0, epsilon=0)
+        simulation = Simulation(universe, lambd=lambd)
         simulation.progress_universe(steps=steps, silence=True)
         all_acceptance_rates.append(simulation.acceptance_rates)
         all_add_rates.append(simulation.add_rates)
@@ -51,11 +51,11 @@ def plot_acceptance(chains: int, steps: int, lambd: int, total_time: int, initia
     means = (mean_add_rates + mean_delete_rates + mean_flip_rates) / 3
     plt.plot(x, means, label='Average acceptance rate', color='black', linestyle='--')
     plt.xlim(0, steps)
-    plt.ylim(0, 0.6)
+    plt.ylim(0, 1)
     plt.title(f"Acceptance rates of MCMC algorithm ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18)
     plt.xlabel("Iteration", fontsize=18)
     plt.ylabel("Acceptance rate", fontsize=18)
-    plt.legend(fontsize=13)
+    plt.legend(fontsize=13, loc='lower right')
     plt.grid(True)
     plt.savefig(f"plots/sep_acceptance_rates_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
 
@@ -80,7 +80,7 @@ def plot_size_ratio_lambda(chains: int, thermalisation_time: int, steps: int, to
     for lambd in lambdas:
         print(f"\nLAMBDA: {lambd}")
         universe = Universe(total_time=total_time, initial_slice_size=initial_slice_size)
-        simulation = Simulation(universe, lambd=lambd, target_volume=0, epsilon=0)
+        simulation = Simulation(universe, lambd=lambd)
         simulation.progress_universe(steps=thermalisation_time, silence=True)
         size_ratios = []
         for _ in range(chains):
@@ -110,7 +110,7 @@ def total_volume_change(chains: int, steps: int, lambd: int, total_time: int, in
     all_volume_changes = []
     for _ in range(chains):
         universe = Universe(total_time=total_time, initial_slice_size=initial_slice_size)
-        simulation = Simulation(universe, lambd=lambd, target_volume=0, epsilon=0)
+        simulation = Simulation(universe, lambd=lambd)
         simulation.progress_universe(steps=steps, silence=True)
         all_volume_changes.append(simulation.volume_changes)
 
@@ -128,6 +128,46 @@ def total_volume_change(chains: int, steps: int, lambd: int, total_time: int, in
     plt.grid(True)
     plt.savefig(f"plots/total_volume_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
 
+def plot_acceptance_probabilities(chains: int, steps: int, lambd: int, total_time: int, initial_slice_size: int) -> float:
+    """
+    Plot the acceptance ratios for each move type over the iterations.
+    """
+    x = np.arange(1, steps + 1, 1)
+    all_add_ar = []
+    all_delete_ar = []
+    all_flip_ar = []
+
+    for _ in range(chains):
+        universe = Universe(total_time=total_time, initial_slice_size=initial_slice_size)
+        simulation = Simulation(universe, lambd=lambd)
+        simulation.progress_universe(steps=steps, silence=True)
+        all_add_ar.append(simulation.ar_add)
+        all_delete_ar.append(simulation.ar_delete)
+        all_flip_ar.append(simulation.ar_flip)
+
+    mean_add_ar, std_add_ar = np.mean(np.array(all_add_ar), axis=0), np.std(np.array(all_add_ar), axis=0)
+    mean_delete_ar, std_delete_ar = np.mean(np.array(all_delete_ar), axis=0), np.std(np.array(all_delete_ar), axis=0)
+    mean_flip_ar, std_flip_ar = np.mean(np.array(all_flip_ar), axis=0), np.std(np.array(all_flip_ar), axis=0)
+
+    # Individual acceptance rates and the mean of the acceptance rates
+    plt.figure(figsize=(10, 6))
+    plt.plot(x, mean_add_ar, label='Add', color='royalblue')
+    plt.plot(x, mean_delete_ar, label='Delete', color='orangered')
+    plt.plot(x, mean_flip_ar, label='Flip', color='seagreen')
+    plt.fill_between(x, mean_add_ar - std_add_ar, mean_add_ar + std_add_ar, alpha=0.3, color='royalblue')
+    plt.fill_between(x, mean_delete_ar - std_delete_ar, mean_delete_ar + std_delete_ar, alpha=0.3, color='orangered')
+    plt.fill_between(x, mean_flip_ar - std_flip_ar, mean_flip_ar + std_flip_ar, alpha=0.3, color='seagreen')
+    plt.yscale('log')
+    plt.xlim(0, steps)
+    plt.title(f"Acceptance probabilities of MCMC algorithm ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18)
+    plt.xlabel("Iteration", fontsize=18)
+    plt.ylabel("Acceptance probability", fontsize=18)
+    plt.legend(fontsize=13, loc='lower right')
+    plt.grid(True)
+    plt.savefig(f"plots/sep_acceptance_prob_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
+
+
+
 if __name__ == "__main__":
     total_time = 50
     initial_slice_size = 40
@@ -135,25 +175,32 @@ if __name__ == "__main__":
     thermalisation_time = 200000
     chains = 10
 
-    # # TOTAL VOLUME OVER ITERATIONS
-    steps = 1000000
-    total_volume_change(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
-    total_volume_change(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
-    total_volume_change(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
+    # # # TOTAL VOLUME OVER ITERATIONS
+    # steps = 1000000
+    # total_volume_change(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
+    # total_volume_change(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+    # total_volume_change(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
 
-    # SIZE RATIO & LAMBDA
-    plot_size_ratio_lambda(chains=chains,
-                           thermalisation_time=thermalisation_time,
-                           steps=steps,
-                           total_time=total_time,
-                           initial_slice_size=initial_slice_size
-                        )
+    # # SIZE RATIO & LAMBDA
+    # plot_size_ratio_lambda(chains=chains,
+    #                        thermalisation_time=thermalisation_time,
+    #                        steps=steps,
+    #                        total_time=total_time,
+    #                        initial_slice_size=initial_slice_size
+    #                     )
 
-    # ACCEPTANCE RATE
-    steps = 1000000
+    # # ACCEPTANCE RATE
+    # steps = 1000000
+    # chains = 10
+    # plot_acceptance(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
+    # plot_acceptance(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
+    # plot_acceptance(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+
+    # ACCEPTANCE RATIOS
+    steps = 200000
     chains = 10
-    plot_acceptance(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
-    plot_acceptance(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
-    plot_acceptance(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
+    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
+    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
 
     plt.show()
