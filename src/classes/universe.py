@@ -476,6 +476,57 @@ class Universe:
                 print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
             print()
 
+    def check_validity(self):
+        """
+        Check the validity of the triangulation.
+        """
+        state = self.get_triangulation_state()
+        vertex_sheet = list(state.values())
+
+        all_triangles_indices = self.triangle_pool.used_indices
+        all_triangles = [self.triangle_pool.elements[i] for i in all_triangles_indices]
+
+        # Check for validity of connections
+        for y, row in enumerate(vertex_sheet):
+            assert len(row) > 3, f"Row {y} has {len(row)} vertices"
+            for x, col in enumerate(row):
+                # Assert that each vertex has a left and right neighbour
+                space_neighbours = col.get_space_neighbours()
+                assert len(space_neighbours) == 2, f"Vertex {col.ID} has {len(space_neighbours)} space neighbours"
+                
+                # Check validity of time and connectivity of future neighbours
+                for future_neighbour in col.get_future_neighbours():
+                    assert col in future_neighbour.get_past_neighbours()
+                    if col.time != self.total_time - 1:
+                        assert future_neighbour.time == col.time + 1
+                    else:
+                        assert future_neighbour.time == 0
+
+                # Check validity of time and connectivity of past neighbours
+                for past_neighbour in col.get_past_neighbours():
+                    assert col in past_neighbour.get_future_neighbours()
+                    if col.time != 0:
+                        assert past_neighbour.time == col.time - 1
+                    else:
+                        assert past_neighbour.time == self.total_time - 1
+
+        # Check for validity of triangles
+        for triangle in all_triangles:
+            assert len(triangle.get_triangles()) == 3, f"Triangle {triangle.ID} has {len(triangle.get_triangles())} triangles"
+            assert triangle.get_vertex_left().time == triangle.get_vertex_right().time, f"Triangle {triangle.ID} has vertices from different time slices"
+
+            # Check for validity of triangle orientation and time
+            if triangle.is_upwards():
+                if triangle.time != self.total_time - 1:
+                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time + 1, f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+                else:
+                    assert triangle.get_vertex_center().time == 0, f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+            else:
+                if triangle.time != 0:
+                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time - 1, f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+                else:
+                    assert triangle.get_vertex_center().time == self.total_time - 1, f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+
     def save_to_file(self, filename):
         """
         Save the state of the Universe to a file using pickle.
