@@ -3,7 +3,7 @@
 # Author: Seda den Boer
 # Date: 04-02-2024
 #
-# Description:
+# Description: plotting functions for the statistics of the CDT 1+1D universe.
 
 import sys
 sys.path.append('..')
@@ -14,6 +14,7 @@ from classes.simulation import Simulation
 import copy
 import matplotlib as mpl
 mpl.rcParams['font.size'] = 16
+
 
 def plot_acceptance(chains: int, steps: int, lambd: int, total_time: int, initial_slice_size: int) -> float:
     """
@@ -130,7 +131,7 @@ def total_volume_change(chains: int, steps: int, lambd: int, total_time: int, in
 
 def plot_acceptance_probabilities(chains: int, steps: int, lambd: int, total_time: int, initial_slice_size: int) -> float:
     """
-    Plot the acceptance ratios for each move type over the iterations.
+    Plot the acceptance probabilities for each move type over the iterations.
     """
     x = np.arange(1, steps + 1, 1)
     all_add_ar = []
@@ -166,6 +167,95 @@ def plot_acceptance_probabilities(chains: int, steps: int, lambd: int, total_tim
     plt.grid(True)
     plt.savefig(f"plots/sep_acceptance_prob_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
 
+def combined_vol_ap(chains: int, steps: int, lambd: int, total_time: int, initial_slice_size: int):
+    """
+    Plot the total volume change and the acceptance probabilities for each move type over the iterations.
+    """
+    x = np.arange(1, steps + 1, 1)
+    all_volume_changes = []
+    all_add_ar = []
+    all_delete_ar = []
+    all_flip_ar = []
+
+    for i in range(chains):
+        universe = Universe(total_time=total_time, initial_slice_size=initial_slice_size)
+        simulation = Simulation(universe, lambd=lambd)
+        simulation.progress_universe(steps=steps, silence=True)
+        all_volume_changes.append(simulation.volume_changes)
+        all_add_ar.append(simulation.ar_add)
+        all_delete_ar.append(simulation.ar_delete)
+        all_flip_ar.append(simulation.ar_flip)
+        simulation.universe.save_to_file(f"saved_universes/universe_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}_{i}.txt")
+
+    all_volume_changes_array = np.array(all_volume_changes)
+    mean_volume_changes = np.mean(all_volume_changes_array, axis=0)
+    std_volume_changes = np.std(all_volume_changes_array, axis=0)
+    mean_add_ar, std_add_ar = np.mean(np.array(all_add_ar), axis=0), np.std(np.array(all_add_ar), axis=0)
+    mean_delete_ar, std_delete_ar = np.mean(np.array(all_delete_ar), axis=0), np.std(np.array(all_delete_ar), axis=0)
+    mean_flip_ar, std_flip_ar = np.mean(np.array(all_flip_ar), axis=0), np.std(np.array(all_flip_ar), axis=0)
+
+    # Total volume change
+    plt.figure(figsize=(11, 6.5))
+    plt.plot(x, mean_volume_changes)
+    plt.fill_between(x, mean_volume_changes - std_volume_changes, mean_volume_changes + std_volume_changes, alpha=0.3)
+    plt.xlim(0, steps)
+    plt.title(f"Total volume of the universe ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18.5)
+    plt.xlabel("Iteration", fontsize=18)
+    plt.ylabel("Total volume", fontsize=18)
+    plt.grid(True, which="both", ls="-", alpha=0.6)
+    plt.savefig(f"plots/total_volume_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
+
+    # Acceptance probabilities
+    plt.figure(figsize=(11, 6.5))
+    plt.plot(x, mean_add_ar, label='Add', color='royalblue')
+    plt.plot(x, mean_delete_ar, label='Delete', color='orangered')
+    plt.plot(x, mean_flip_ar, label='Flip', color='seagreen')
+    plt.fill_between(x, mean_add_ar - std_add_ar, mean_add_ar + std_add_ar, alpha=0.3, color='royalblue')
+    plt.fill_between(x, mean_delete_ar - std_delete_ar, mean_delete_ar + std_delete_ar, alpha=0.3, color='orangered')
+    plt.fill_between(x, mean_flip_ar - std_flip_ar, mean_flip_ar + std_flip_ar, alpha=0.3, color='seagreen')
+    plt.yscale('log')
+    plt.xlim(0, steps)
+    plt.title(f"Acceptance probabilities of MCMC algorithm ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18.5)
+    plt.xlabel("Iteration", fontsize=18)
+    plt.ylabel("Acceptance probability", fontsize=18)
+    plt.legend(fontsize=14, loc='lower right')
+    plt.grid(True, which="both", ls="-", alpha=0.6)
+    plt.savefig(f"plots/sep_acceptance_prob_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
+
+    # Make a few zoom-in plots
+    plt.figure(figsize=(11, 6.5))
+    plt.plot(x, mean_add_ar, label='Add', color='royalblue')
+    plt.plot(x, mean_delete_ar, label='Delete', color='orangered')
+    plt.plot(x, mean_flip_ar, label='Flip', color='seagreen')
+    plt.fill_between(x, mean_add_ar - std_add_ar, mean_add_ar + std_add_ar, alpha=0.3, color='royalblue')
+    plt.fill_between(x, mean_delete_ar - std_delete_ar, mean_delete_ar + std_delete_ar, alpha=0.3, color='orangered')
+    plt.fill_between(x, mean_flip_ar - std_flip_ar, mean_flip_ar + std_flip_ar, alpha=0.3, color='seagreen')
+    plt.yscale('log')
+    plt.xlim(0, steps)
+    plt.ylim(0.1, 10)
+    plt.title(f"Acceptance probabilities of MCMC algorithm ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18.5)
+    plt.xlabel("Iteration", fontsize=18)
+    plt.ylabel("Acceptance probability", fontsize=18)
+    plt.legend(fontsize=14, loc='lower right')
+    plt.grid(True, which="both", ls="-", alpha=0.6)
+    plt.savefig(f"plots/zoomin1_sep_acceptance_prob_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
+
+    plt.figure(figsize=(11, 6.5))
+    plt.plot(x, mean_add_ar, label='Add', color='royalblue')
+    plt.plot(x, mean_delete_ar, label='Delete', color='orangered')
+    plt.plot(x, mean_flip_ar, label='Flip', color='seagreen')
+    plt.fill_between(x, mean_add_ar - std_add_ar, mean_add_ar + std_add_ar, alpha=0.3, color='royalblue')
+    plt.fill_between(x, mean_delete_ar - std_delete_ar, mean_delete_ar + std_delete_ar, alpha=0.3, color='orangered')
+    plt.fill_between(x, mean_flip_ar - std_flip_ar, mean_flip_ar + std_flip_ar, alpha=0.3, color='seagreen')
+    plt.yscale('log')
+    plt.xlim(100000, 200000)
+    plt.ylim(0.1, 10)
+    plt.title(f"Acceptance probabilities of MCMC algorithm ($\lambda$={lambd:.2f}, $N_{{v,i}}$={total_time * initial_slice_size})", fontsize=18.5)
+    plt.xlabel("Iteration", fontsize=18)
+    plt.ylabel("Acceptance probability", fontsize=18)
+    plt.legend(fontsize=14, loc='lower right')
+    plt.grid(True, which="both", ls="-", alpha=0.6)
+    plt.savefig(f"plots/zoomin2_sep_acceptance_prob_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}.png", dpi=400, bbox_inches='tight')
 
 
 if __name__ == "__main__":
@@ -196,11 +286,18 @@ if __name__ == "__main__":
     # plot_acceptance(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
     # plot_acceptance(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
 
-    # ACCEPTANCE RATIOS
+    # ACCEPTANCE PROBABILITIES
+    # steps = 200000
+    # chains = 10
+    # plot_acceptance_probabilities(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
+    # plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
+    # plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+
+    # COMBINED VOLUME & ACCEPTANCE PROBABILITIES
     steps = 200000
     chains = 10
-    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
-    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
-    plot_acceptance_probabilities(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+    combined_vol_ap(chains=chains, steps=steps, lambd=np.log(2), total_time=total_time, initial_slice_size=initial_slice_size)
+    combined_vol_ap(chains=chains, steps=steps, lambd=0.8, total_time=total_time, initial_slice_size=initial_slice_size)
+    combined_vol_ap(chains=chains, steps=steps, lambd=0.5, total_time=total_time, initial_slice_size=initial_slice_size)
 
     plt.show()

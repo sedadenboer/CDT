@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import vtk
 import networkx as nx
-
+import copy
 
 def torus_vtk(universe: Universe):
     """
@@ -209,24 +209,24 @@ def plot_triangulation_flat(universe: Universe):
 
 
 if __name__ == "__main__":
-    universe = Universe(40, 50)
+    universe = Universe(4, 4)
 
-    simulation = Simulation(universe, lambd=np.log(2))
-    simulation.progress_universe(1000, silence=True)
+    # simulation = Simulation(universe, lambd=np.log(2))
+    # simulation.progress_universe(1000, silence=True)
 
     # plot_triangulation_flat(universe)
 
-    state = simulation.universe.get_triangulation_state()
-    vertex_sheet = list(state.values())
+    # state = simulation.universe.get_triangulation_state()
+    # vertex_sheet = list(state.values())
 
-    # Add the edges from the space, future, and past neighbors in the vertex objects
-    for y, row in enumerate(vertex_sheet):
-        for x, col in enumerate(row):
-            space_neighbours = [neighbour.ID for neighbour in col.get_space_neighbours()]
-            future_neighbours = [neighbour.ID for neighbour in col.get_future_neighbours()]
-            past_neighbours = [neighbour.ID for neighbour in col.get_past_neighbours()]
-            print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
-        print()
+    # # Add the edges from the space, future, and past neighbors in the vertex objects
+    # for y, row in enumerate(vertex_sheet):
+    #     for x, col in enumerate(row):
+    #         space_neighbours = [neighbour.ID for neighbour in col.get_space_neighbours()]
+    #         future_neighbours = [neighbour.ID for neighbour in col.get_future_neighbours()]
+    #         past_neighbours = [neighbour.ID for neighbour in col.get_past_neighbours()]
+    #         print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
+    #     print()
 
-    torus_vtk(simulation.universe)
+    # torus_vtk(simulation.universe)
 
