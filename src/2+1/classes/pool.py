@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING, List, Optional, Set, Union
 if TYPE_CHECKING:
     from vertex import Vertex
     from triangle import Triangle
+    from tetra import Tetrahedron
+    from halfedge import HalfEdge
 
 
 class Pool(object):
@@ -26,14 +28,14 @@ class Pool(object):
     """
     def __init__(self, capacity: int):
         self.capacity: int = capacity
-        self.elements: List[Union[Triangle, Vertex, None]] = [None for _ in range(self.capacity)]
+        self.elements: List[Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]] = [None for _ in range(self.capacity)]
         self.x: List[int] = [0] * self.capacity
         self.p: List[Optional[int]] = [i + 1 for i in range(self.capacity)]
         self.p[-1] = None
         self.used_indices: Set[int] = set()
         self.first: Optional[int] = 0
     
-    def occupy(self, obj: Union[Triangle, Vertex]) -> int:
+    def occupy(self, obj: Union[Triangle, Vertex, Tetrahedron, HalfEdge]) -> int:
         """
         Occupies a space in the pool and returns the index of the object.
 
@@ -87,7 +89,7 @@ class Pool(object):
         self.p[index] = self.first
         self.first = index
 
-    def get(self, index: int) -> Union[Triangle, Vertex, None]:
+    def get(self, index: int) -> Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]:
         """
         Gets an object from the pool.
 
