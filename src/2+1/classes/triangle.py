@@ -6,7 +6,7 @@
 # Description: Defines a triangle in the triangulation.
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 if TYPE_CHECKING:
     from vertex import Vertex
     from halfedge import HalfEdge
@@ -23,9 +23,9 @@ class Triangle:
 
     def __init__(self):
         self.ID: int
-        self.vs: list[int] = []
-        self.hes: list[int] = []
-        self.tnbr: list[int] = []
+        self.vs: Tuple[int] = ()
+        self.hes: Tuple[int] = ()
+        self.trnbr: Tuple[int] = ()
     
     def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex):
         """
@@ -36,7 +36,7 @@ class Triangle:
             v1 (Vertex): Second vertex.
             v2 (Vertex): Third vertex.
         """
-        self.vs = [v0.ID, v1.ID, v2.ID]
+        self.vs = (v0, v1, v2)
         assert v0.time == v1.time == v2.time
         self.time = v0.time
     
@@ -49,7 +49,7 @@ class Triangle:
             h1 (HalfEdge): Second halfedge.
             h2 (HalfEdge): Third halfedge.
         """
-        self.hes = [h0.ID, h1.ID, h2.ID]
+        self.hes = (h0, h1, h2)
     
     def set_triangle_neighbours(self, t0: Triangle, t1: Triangle, t2: Triangle):
         """
@@ -60,7 +60,7 @@ class Triangle:
             t1 (Triangle): Second triangle.
             t2 (Triangle): Third triangle.
         """
-        self.tnbr = [t0.ID, t1.ID, t2.ID]
+        self.trnbr = (t0, t1, t2)
     
     def get_vertices(self) -> list[int, int, int]:
         """
@@ -69,7 +69,7 @@ class Triangle:
         Returns:
             list[int, int, int]: The vertices of the triangle.
         """
-        return tuple(self.vs)
+        return self.vs
     
     def get_half_edges(self) -> list[int, int, int]:
         """
@@ -87,7 +87,7 @@ class Triangle:
         Returns:
             list[int, int, int]: The triangle neighbours of the triangle.
         """
-        return self.tnbr
+        return self.trnbr
     
     def has_vertex(self, v: Vertex) -> bool:
         """

@@ -36,9 +36,9 @@ class Tetrahedron:
         self.ID: int
         self.time: int
         self.type: Union[Tetrahedron.Type, None] = None
-        self.tnbr: list[Tetrahedron] = []
-        self.vs: list[Vertex] = []
-        self.hes: list[HalfEdge] = []
+        self.tnbr: Tuple[Tetrahedron] = ()
+        self.vs: Tuple[Vertex] = ()
+        self.hes: Tuple[HalfEdge] = ()
 
     def to_string(self, t: Type) -> str:
         """
@@ -58,7 +58,8 @@ class Tetrahedron:
     
     def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex, v3: Vertex) -> None:
         """
-        Sets the vertices of the tetrahedron.
+        Sets the vertices of the tetrahedron. v1, v2, and v0 make up the base 
+        of the tetrahedron, and v3 is the opposite vertex.
 
         Args:
             v0 (Vertex): First vertex.
@@ -75,12 +76,13 @@ class Tetrahedron:
 
         assert v0.time != v3.time
         
-        self.vs = [v0, v1, v2, v3]
+        self.vs = (v0, v1, v2, v3)
         self.time = v0.time
     
     def get_vertices(self) -> list[Vertex]:
         """
-        Returns the vertices of the tetrahedron.
+        Returns the vertices of the tetrahedron. v1, v2, and v0 make up the base 
+        of the tetrahedron, and v3 is the opposite vertex.
 
         Returns:
             list[Vertex]: The vertices of the tetrahedron.
@@ -96,7 +98,7 @@ class Tetrahedron:
             h1 (HalfEdge): Second halfedge.
             h2 (HalfEdge): Third halfedge.
         """
-        self.hes = [h0, h1, h2]
+        self.hes = (h0, h1, h2)
     
     def get_half_edges(self) -> list[HalfEdge]:
         """
@@ -141,7 +143,9 @@ class Tetrahedron:
     
     def set_tetras(self, t0: Tetrahedron, t1: Tetrahedron, t2: Tetrahedron, t3: Tetrahedron):
         """
-        Sets the tetrahedron neighbours of the tetrahedron.
+        Sets the tetrahedron neighbours of the tetrahedron. The order of the tetrahedra is
+        important. t0 and t2 are (2,2)- oriented, and t1 is a(3,1) oriented. The last
+        tetrahedron is opposite to the last vertex, and has orientation (1,3).
 
         Args:
             t0 (Tetrahedron): First tetrahedron.
@@ -149,7 +153,7 @@ class Tetrahedron:
             t2 (Tetrahedron): Third tetrahedron.
             t3 (Tetrahedron): Fourth tetrahedron.
         """
-        self.tnbr = [t0, t1, t2, t3]
+        self.tnbr = (t0, t1, t2, t3)
 
     def get_tetras(self) -> list[Tetrahedron]:
         """

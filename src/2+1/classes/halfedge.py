@@ -34,7 +34,7 @@ class HalfEdge:
         self.tetra: Tetrahedron
         self.triangle: Triangle
 
-    def set_vertices(self, ve: Vertex, vf: Vertex) -> None:
+    def set_vertices(self, ve: Vertex, vf: Vertex):
         self.vs[0] = ve
         self.vs[1] = vf
     
@@ -44,6 +44,30 @@ class HalfEdge:
     def get_adjacent(self) -> HalfEdge:
         return self.adj
 
-    def set_adjacent(self, he: HalfEdge) -> None:
+    def set_adj(self, he: HalfEdge):
         he.adj = self
         self.adj = he
+    
+    def get_adj(self) -> HalfEdge:
+        return self.adj
+    
+    def set_next(self, he: HalfEdge):
+        self.next = he
+    
+    def get_next(self) -> HalfEdge:
+        return self.next
+    
+    def set_prev(self, he: HalfEdge):
+        self.prev = he
+    
+    def set_tetra(self, t: Tetrahedron):
+        self.tetra = t
+    
+    def get_tetra(self) -> Tetrahedron:
+        return self.tetra
+    
+    def set_triangle(self, t: Triangle):
+        self.triangle = t
+    
+    def get_triangle(self) -> Triangle:
+        return self.triangle

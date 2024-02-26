@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from tetra import Tetrahedron
 
 
-class Vertex(object):
+class Vertex:
     """
     Represents a vertex in the triangulation.
 
@@ -29,23 +29,23 @@ class Vertex(object):
         self.cnum = 0
         self.scnum = 0
 
-    def get_tetra(self) -> int:
-        """
-        Returns the tetrahedron that contains this vertex.
-
-        Returns:
-            int: The tetrahedron that contains this vertex.
-        """
-        return self.tetra
-    
     def set_tetra(self, t: Tetrahedron) -> None:
         """
-        Sets the tetrahedron that contains this vertex.
+        Sets an (3,1)-tetrahedron that contains this vertex in its base.
 
         Args:
-            t (Tetrahedron): The tetrahedron that contains this vertex.
+            t (Tetrahedron): A (3,1)-tetrahedron that contains this vertex in its base.
         """
         self.tetra = t
+
+    def get_tetra(self) -> int:
+        """
+        Returns an (3,1)-tetrahedron that contains this vertex in its base.
+
+        Returns:
+            int: A (3,1)-tetrahedron that contains this vertex in its base.
+        """
+        return self.tetra
 
     def check_vertex_neighbour(self, v: Vertex) -> bool:
         """

@@ -69,6 +69,15 @@ class Bag(object):
         self.used_indices.remove(pool_index)
         self.size -= 1
 
+    def clear(self):
+        """
+        Clear Bag.
+        """
+        self.elements = np.full(self.pool_capacity, self.EMPTY, dtype=int)
+        self.indices = np.full(self.pool_capacity, self.EMPTY, dtype=int)
+        self.used_indices.clear()
+        self.size = 0
+        
     def pick(self) -> Optional[int]:
         """
         Pick a random object from Bag.

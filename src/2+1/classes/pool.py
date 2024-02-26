@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
+import random
 from typing import TYPE_CHECKING, List, Optional, Set, Union
-
 if TYPE_CHECKING:
     from vertex import Vertex
     from triangle import Triangle
@@ -29,6 +29,7 @@ class Pool(object):
         self.p[-1] = None
         self.used_indices: Set[int] = set()
         self.first: Optional[int] = 0
+        self.size = len(self.used_indices)
     
     def occupy(self, obj: Union[Triangle, Vertex, Tetrahedron, HalfEdge]) -> int:
         """
@@ -84,6 +85,18 @@ class Pool(object):
         self.p[index] = self.first
         self.first = index
 
+    def free_all(self):
+        """
+        Frees all spaces in the pool.
+        """
+        self.elements = np.empty(self.capacity, dtype=object)
+        self.x = np.zeros(self.capacity, dtype=int)
+        self.p = np.arange(1, self.capacity + 1, dtype=object)
+        self.p[-1] = None
+        self.used_indices.clear()
+        self.first = 0
+        self.size = 0
+
     def get(self, index: int) -> Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]:
         """
         Gets an object from the pool.
@@ -95,6 +108,21 @@ class Pool(object):
             Union[Triangle, Vertex, None]: Object.
         """
         return self.elements[index]
+    
+    def pick(self) -> int:
+        """
+        Picks a random object from the pool.
+
+        Returns:
+            int: Index of object.
+        """
+        if self.size == 0:
+            raise Exception("Pool is empty.")
+        elif self.size > 0:
+            return random.choice(list(self.used_indices))
+        
+        # Pool is empty
+        return None 
     
     def contains(self, index: int) -> bool:
         """
