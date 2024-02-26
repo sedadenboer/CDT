@@ -534,8 +534,8 @@ class Universe:
         Args:
             filename (str): The name of the file to save the state to.
         """
-        with open(filename, 'wb') as file:
-            pickle.dump(self.__dict__, file)
+        with open(filename + '.pkl', 'wb') as file:
+            pickle.dump(self.__dict__, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_from_file(self, filename):
         """

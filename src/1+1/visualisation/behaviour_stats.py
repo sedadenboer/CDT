@@ -185,7 +185,8 @@ def combined_vol_ap(chains: int, steps: int, lambd: int, total_time: int, initia
         all_add_ar.append(simulation.ar_add)
         all_delete_ar.append(simulation.ar_delete)
         all_flip_ar.append(simulation.ar_flip)
-        simulation.universe.save_to_file(f"saved_universes/universe_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}_{i}.txt")
+        if i == 0:
+            simulation.universe.save_to_file(f"saved_universes/universe_lambda={lambd:.2f}_steps={steps}_size={total_time * initial_slice_size}_{i}")
 
     all_volume_changes_array = np.array(all_volume_changes)
     mean_volume_changes = np.mean(all_volume_changes_array, axis=0)

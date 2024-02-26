@@ -1,12 +1,7 @@
-# pool.py
-#
-# Author: Seda den Boer
-# Date: 03-01-2024
-# 
-# Description: A pool of indices that can be used to create and destroy objects.
-
 from __future__ import annotations
+import numpy as np
 from typing import TYPE_CHECKING, List, Optional, Set, Union
+
 if TYPE_CHECKING:
     from vertex import Vertex
     from triangle import Triangle
@@ -22,15 +17,15 @@ class Pool(object):
 
     Attributes:
         capacity (int): Maximum number of objects in pool.
-        elements (list): List of objects.
+        elements (np.ndarray): Array of objects.
         used_indices (set): Set of indices of used objects.
         first (int): Index of first free object.
     """
     def __init__(self, capacity: int):
         self.capacity: int = capacity
-        self.elements: List[Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]] = [None for _ in range(self.capacity)]
-        self.x: List[int] = [0] * self.capacity
-        self.p: List[Optional[int]] = [i + 1 for i in range(self.capacity)]
+        self.elements: np.ndarray = np.empty(self.capacity, dtype=object)
+        self.x: np.ndarray = np.zeros(self.capacity, dtype=int)
+        self.p: np.ndarray = np.arange(1, self.capacity + 1, dtype=object)
         self.p[-1] = None
         self.used_indices: Set[int] = set()
         self.first: Optional[int] = 0
@@ -127,6 +122,15 @@ class Pool(object):
             int: Number of occupied spaces.
         """
         return len(self.used_indices)
+    
+    def get_objects(self) -> np.darray[Union[Triangle, Vertex, Tetrahedron, HalfEdge]]:
+        """
+        Gets the objects in the pool without the empty spaces.
+
+        Returns:
+            np.darray[Union[Triangle, Vertex, Tetrahedron, HalfEdge]]: Array of objects.
+        """
+        return self.elements[list(self.used_indices)]
     
     def log(self):
         """

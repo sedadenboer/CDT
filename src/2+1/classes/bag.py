@@ -1,12 +1,5 @@
-# bag.py
-#
-# Author: Seda den Boer
-# Date: 03-01-2024
-# 
-# Description: A bag of indices that can be used to pick random objects
-# from a set of objects with certain properties.
-
 import random
+import numpy as np
 from typing import Optional, Set
 
 
@@ -18,16 +11,16 @@ class Bag(object):
 
     Attributes:
         pool_capacity (int): Maximum number of objects in bag.
-        elements (list): List of pool indices.
-        indices (list): List of indices of pool indices.
+        elements (np.ndarray): Array of pool indices.
+        indices (np.ndarray): Array of indices of pool indices.
         size (int): Number of pool indices in bag.
     """
     EMPTY = -1
 
     def __init__(self, pool_capacity: int):
         self.pool_capacity = pool_capacity
-        self.elements = [self.EMPTY] * pool_capacity
-        self.indices = [self.EMPTY] * pool_capacity
+        self.elements = np.full(pool_capacity, self.EMPTY, dtype=int)
+        self.indices = np.full(pool_capacity, self.EMPTY, dtype=int)
         self.used_indices: Set[int] = set()
         self.size = 0
 

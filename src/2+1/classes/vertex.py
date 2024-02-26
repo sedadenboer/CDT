@@ -19,7 +19,7 @@ class Vertex(object):
         ID: Unique identifier for the vertex.
         time: Slice number.
         tetra: Tetrahedron that contains this vertex.
-        cnum: Number of triangles that share this vertex.
+        cnum: Number of tetrahedra that share this vertex.
         scnum: Spatial coordination number.
     """
     def __init__(self, time: int):
@@ -28,6 +28,24 @@ class Vertex(object):
         self.tetra: Tetrahedron
         self.cnum = 0
         self.scnum = 0
+
+    def get_tetra(self) -> int:
+        """
+        Returns the tetrahedron that contains this vertex.
+
+        Returns:
+            int: The tetrahedron that contains this vertex.
+        """
+        return self.tetra
+    
+    def set_tetra(self, t: Tetrahedron) -> None:
+        """
+        Sets the tetrahedron that contains this vertex.
+
+        Args:
+            t (Tetrahedron): The tetrahedron that contains this vertex.
+        """
+        self.tetra = t
 
     def check_vertex_neighbour(self, v: Vertex) -> bool:
         """

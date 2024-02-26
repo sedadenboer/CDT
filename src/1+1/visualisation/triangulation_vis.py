@@ -13,7 +13,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import vtk
 import networkx as nx
-import copy
+
 
 def torus_vtk(universe: Universe):
     """
@@ -203,18 +203,19 @@ def plot_triangulation_flat(universe: Universe):
         G.add_edge(triangle.vc_.ID, triangle.vl_.ID)
         
     # Plot the graph
-    pos = nx.spring_layout(G, dim=2)
+    pos = nx.spring_layout(G)
     nx.draw(G, pos, with_labels=False, node_size=5, node_color='skyblue', font_size=8, font_weight='bold', edge_color='black', linewidths=1, width=1, alpha=0.7)
     plt.show()
 
 
 if __name__ == "__main__":
-    universe = Universe(40, 50)
+    universe = Universe(20, 20)
 
     simulation = Simulation(universe, lambd=np.log(2))
-    simulation.progress_universe(1000, silence=True)
+    simulation.progress_universe(100, silence=False)
 
     universe.print_state()
 
+    # plot_triangulation_flat(universe)
     torus_vtk(universe)
 

@@ -160,8 +160,8 @@ class Simulation:
                 self.selected_add += 1
                 if self.mcmc_check(add_ar):
                     # Perform the add move
+                    # print(f"Added vertex {add_triangle_id}, at time {self.universe.triangle_pool.get(add_triangle_id).time}")
                     self.universe.insert_vertex(add_triangle_id)
-                    # print(f"Added vertex {add_triangle_id}")
                     # self.universe.print_state()
                     # print()
                     self.add_count += 1
@@ -169,9 +169,9 @@ class Simulation:
             else:
                 self.selected_delete += 1
                 if self.mcmc_check(delete_ar):
+                    # print(f"Deleted vertex {del_vertex_id}, at time {self.universe.vertex_pool.get(del_vertex_id).time}")
                     self.universe.remove_vertex(del_vertex_id)
                     self.delete_count += 1
-                    # print(f"Deleted vertex {del_vertex_id}")
                     # self.universe.print_state()
                     # print()
                     return 2
@@ -179,8 +179,9 @@ class Simulation:
             self.selected_flip += 1
             if self.mcmc_check(flip_ar):
                 # Perform the flip move
+                # print(f"Flipped triangle {flip_triangle_id}, at time {self.universe.triangle_pool.get(flip_triangle_id).time}")
                 self.universe.flip_edge(flip_triangle_id)
-                # print(f"Flipped triangle {flip_triangle_id}")
+                self.flip_count += 1
                 # self.universe.print_state()
                 # print()
                 return 3
@@ -247,7 +248,6 @@ class Simulation:
         if not silence:
             print("...")
             print(f"Progressing the Universe {steps} steps took {end-start} seconds")
-            print(f"Rejections: {steps - self.current_success}, Acceptance rate: {self.current_success / steps:.5f}")
             print(f"Add count: {self.add_count}, delete count: {self.delete_count}, flip count: {self.flip_count}")
             print(f"Ratio delete / add: {self.delete_count / self.add_count:.5f}. Ratio add + delete / flip: {(self.add_count + self.delete_count) / self.flip_count:.5f}")
             print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")

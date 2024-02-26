@@ -18,6 +18,12 @@ class HalfEdge:
     Represents a halfedge in the triangulation.
 
     Attributes:
+        vs (list[Vertex]): List of vertices.
+        adj (HalfEdge): Adjacent halfedge.
+        next (HalfEdge): Next halfedge.
+        prev (HalfEdge): Previous halfedge.
+        tetra (Tetrahedron): Tetrahedron that contains this halfedge.
+        triangle (Triangle): Triangle that contains this halfedge.
     """
 
     def __init__(self) -> None:

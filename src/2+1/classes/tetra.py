@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from tetra import Tetrahedron
     from halfedge import HalfEdge
 
+
 class Tetrahedron:
     """
     Represents a tetrahedron in the triangulation.
@@ -31,9 +32,9 @@ class Tetrahedron:
         ONETHREE = '13'
         TWOTWO = '22'
 
-    def __init__(self, time) -> None:
+    def __init__(self) -> None:
         self.ID: int
-        self.time = time
+        self.time: int
         self.type: Union[Tetrahedron.Type, None] = None
         self.tnbr: list[Tetrahedron] = []
         self.vs: list[Vertex] = []
@@ -65,15 +66,15 @@ class Tetrahedron:
             v2 (Vertex): Third vertex.
             v3 (Vertex): Fourth vertex.
         """
-        if v0.time == v1.time == v2.time:
+        if v0.time == v1.time and v0.time == v2.time:
             self.type = Tetrahedron.Type.THREEONE
-        elif v1.time == v2.time == v3.time:
+        if v1.time == v2.time and v1.time == v3.time:
             self.type = Tetrahedron.Type.ONETHREE
-        elif v0.time == v1.time == v2.time == v3.time:
+        if v0.time == v1.time and v2.time == v3.time:
             self.type = Tetrahedron.Type.TWOTWO
-        else:
-            raise ValueError("Inconsistent vertex time.")
 
+        assert v0.time != v3.time
+        
         self.vs = [v0, v1, v2, v3]
         self.time = v0.time
     

@@ -1,19 +1,21 @@
 # universe.py
 #
 # Author: Seda den Boer
-# Date: 02-01-2024
+# Date: 17-02-2024	
 # 
-# Description:
+# Description: The Universe class that represents the current state of the triangulation.
 
 from __future__ import annotations
 from typing import cast
 from vertex import Vertex
 from triangle import Triangle
+from tetra import Tetrahedron
 from pool import Pool
 from bag import Bag
 import pickle
 import resource
 import sys
+import random
 
 max_rec = 0x100000
 
@@ -27,69 +29,166 @@ class Universe:
     The Universe class represents the current state of the triangulation
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
-
-    Attributes:
-        total_time (int): Total number of time slices.
-        initial_slice_size (int): Initial size of the time slices.
-        VERTEX_CAPACITY (int): Maximum number of vertices in the triangulation.
-        TRIANGLE_CAPACITY (int): Maximum number of triangles in the triangulation.
-        vertex_pool (Pool): Pool of vertices.
-        triangle_pool (Pool): Pool of triangles.
-        triangle_add_bag (Bag): Bag of triangles that can be added.
-        four_vertices_bag (Bag): Bag of vertices that have degree 4.
-        triangle_flip_bag (Bag): Bag of triangles that can be flipped.
-        n_vertices (int): Total number of vertices in the triangulation.
-        n_triangles (int): Total number of triangles in the triangulation.
-        slice_sizes (dict): Dictionary with the size of each time slice.
-        triangle_up_count (int): Number of triangles with an upwards orientation.
-        triangle_down_count (int): Number of triangles with a downwards orientation.
     """
 
-    def __init__(self, total_time: int, initial_slice_size: int, VERTEX_CAPACITY: int = 1000000):
-        if total_time < 3:
-            raise ValueError("Total time must be greater than 3.")
-        if initial_slice_size < 3:
-            raise ValueError("Initial slice size must be greater than 3.")
-        if VERTEX_CAPACITY < 9:
-            raise ValueError("Vertex capacity must be greater than 9.")
-        
-        self.total_time = total_time
-        self.initial_slice_size = initial_slice_size
-
+    def __init__(self, geometry_infilename: str, VERTEX_CAPACITY: int = 1000000):
         VERTEX_CAPACITY = VERTEX_CAPACITY
         TRIANGLE_CAPACITY = 2 * VERTEX_CAPACITY
+        TETRAHEDRON_CAPACITY = 2 * VERTEX_CAPACITY
 
-        # Create pools for vertices and triangles
-        self.vertex_pool = Pool(capacity=VERTEX_CAPACITY)
-        self.triangle_pool = Pool(capacity=TRIANGLE_CAPACITY)
+        # Initialize the pools
+        self.vertex_pool = Pool(VERTEX_CAPACITY)
+        self.triangle_pool = Pool(TRIANGLE_CAPACITY)
+        self.tetrahedron_pool = Pool(TETRAHEDRON_CAPACITY)
 
-        # Create bags
-        self.triangle_add_bag = Bag(pool_capacity=TRIANGLE_CAPACITY)
-        self.four_vertices_bag = Bag(pool_capacity=VERTEX_CAPACITY)
-        self.triangle_flip_bag = Bag(pool_capacity=TRIANGLE_CAPACITY)
+        # Initialize the bags
+        self.tetras_all = Bag(TETRAHEDRON_CAPACITY)
+        self.tetras_31 = Bag(TETRAHEDRON_CAPACITY)
+        self.vertices_all = Bag(VERTEX_CAPACITY)
+        self.vertices_six = Bag(VERTEX_CAPACITY)
 
-        # Total size of the triangulation   
-        self.n_vertices = total_time * initial_slice_size
-        self.n_triangles = (total_time - 1) * (initial_slice_size - 1) * 2
+        self.initialise(geometry_infilename)
 
-        # Create a dictionary to store the size of each time slice
-        self.slice_sizes = {t: initial_slice_size for t in range(total_time)}
-
-        # Number of triangles with a certain orientation
-        self.triangle_up_count = 0
-        self.triangle_down_count = 0
-
-        # Initialise the triangulation, store the vertices and triangles
-        self.initialise_triangulation()
-
-    def initialise_triangulation(self):
+    def initialise(self, geometry_infilename: str) -> bool:
         """
-        Initialise the grid with vertices and triangles. Creates
-        vertices and triangles and set their connectivity.
+        Initializes the Universe with a given geometry.
+
+        Args:
+            geometry_filename (str): Name of the file with the geometry.
+            fID_ (int): Identifier of the file.
+
+        Returns:
+            bool: True if the initialization was successful, otherwise False.
         """
-        total_time = self.total_time
-        width = self.initial_slice_size
+        # Read the geometry file
+        with open(geometry_infilename, 'r') as infile:
+            assert infile
+
+            # First line is a switch indicating whether tetrahedron data is ordered by convention
+            ordered = bool(infile.readline().strip())
+
+            # Read the number of vertices
+            n0 = int(infile.readline())
+            print(f"n0: {n0}")
+            max_time = 0
+            vs = []
+
+            # Read each vertex
+            for _ in range(n0):
+                line = infile.readline().strip()
+                vertex = Vertex(time=int(line))
+                vertex.ID = self.vertex_pool.occupy(vertex)
+                vs.append(vertex)
+                if vertex.time > max_time:
+                    max_time = vertex.time
+
+            # Check consistency of the number of vertices
+            line = int(infile.readline())
+            if line != n0:
+                print(f"Error: n0 = {n0}, line = {line}")
+                return False
+
+            # Calculate the number of time slices based on the maximum time
+            self.n_slices = max_time + 1
+            self.slab_sizes = [0] * self.n_slices
+            self.slice_sizes = [0] * self.n_slices
+
+            # Read the number of tetrahedra
+            n3 = int(infile.readline()) 
+            print(f"n3: {n3}")
+
+            # Make n3 tetrahedra
+            for _ in range(n3):
+                tetra = Tetrahedron()
+                tetra.ID = self.tetrahedron_pool.occupy(tetra)
+
+            # Add vertices and neighbouring tetrahedra to the tetrahedra
+            for i in range(n3):
+                tetra = self.tetrahedron_pool.get(i)
+
+                # Read the vertices and neighboring tetrahedra of the tetrahedron
+                tetra_vs = []
+                tetra_ts = []
+                
+                # Read the vertices of the tetrahedron
+                for _ in range(4):
+                    line = infile.readline().strip()
+                    tetra_vs.append(self.vertex_pool.get(int(line)))
+
+                tetra.set_vertices(tetra_vs[0], tetra_vs[1], tetra_vs[2], tetra_vs[3])
+          
+                # Read the neighboring tetrahedra of the tetrahedron
+                for _ in range(4):
+                    line = infile.readline().strip()
+                    tetra_ts.append(self.tetrahedron_pool.get(int(line)))
+                
+                # If the tetrahedron is a 3-1 tetrahedron, update the size of the slices
+                if tetra.is_31():
+                    # Set tetrahedron neighbors for each vertex
+                    for j in range(3):
+                        vertex = tetra_vs[j]
+                        vertex.set_tetra(tetra)
+
+                tetra.set_tetras(tetra_ts[0], tetra_ts[1], tetra_ts[2], tetra_ts[3])
+
+                # Update bags
+                self.tetras_all.add(tetra.ID)
+                if tetra.is_31():
+                    self.tetras_31.add(tetra.ID)
+
+                # Update the sizes
+                self.slab_sizes[tetra.get_vertices()[1].time] += 1
+                if tetra.is_31():
+                    self.slice_sizes[tetra.get_vertices()[0].time] += 1
+
+            # Check consistency of the number of tetrahedra
+            line = int(infile.readline())
+            if line != n3:
+                print(f"Error: n3 = {n3}, line = {line}")
+                return False
+            
+            print(f"Read {geometry_infilename}.")
+
+            # If the tetrahedra are not ordered by convention, order them
+            if not ordered:
+                for tetra in self.tetrahedron_pool.get_objects():
+                    tnbr = tetra.get_tetras()
+                    t012, t013, t023, t123 = -1, -1, -1, -1
+                    for tn in tnbr:
+                        if not tn.has_vertex(tetra.get_vertices()[3]):
+                            t012 = tn
+                            continue
+                        if not tn.has_vertex(tetra.get_vertices()[2]):
+                            t013 = tn
+                            continue
+                        if not tn.has_vertex(tetra.get_vertices()[1]):
+                            t023 = tn
+                            continue
+                        if not tn.has_vertex(tetra.get_vertices()[0]):
+                            t123 = tn
+                            continue
+                    
+                    assert t012 >= 0 and t013 >= 0 and t023 >= 0 and t123 >= 0
+                    tetra.set_tetras(t012, t013, t023, t123)
+            
+            # Calculate the number of tetrahedra that contain each vertex and the spatial coordination number
+            for vertex in vs:
+                cnum = scnum = 0
+
+                for tetra in self.tetrahedron_pool.get_objects():
+                    if tetra.has_vertex(vertex):
+                        cnum += 1
+                    if not tetra.is_31():
+                        continue
+                    if tetra.get_vertices()[0] == vertex or tetra.get_vertices()[1] == vertex or tetra.get_vertices()[2] == vertex:
+                        scnum += 1
+                
+                vertex.cnum = cnum
+                vertex.scnum = scnum
         
+        return True
+
+
     def insert_vertex(self, triangle_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
         Insert a vertex into the triangulation.
@@ -127,21 +226,6 @@ class Universe:
             tuple[Triangle, Triangle]: The two triangles that are flipped (t, tr).
         """
         pass
-    
-    def is_four_vertex(self, vertex: Vertex) -> bool:
-        """
-        Checks if a vertex is of degree 4.
-
-        Args:
-            vertex (Vertex): Vertex to be checked.
-
-        Returns:
-            bool: True if vertex is of degree 4, otherwise False.
-        """
-        return (vertex.get_triangle_left().get_triangle_right() 
-                == vertex.get_triangle_right()) and (
-                vertex.get_triangle_left().get_triangle_center().get_triangle_right() 
-                == vertex.get_triangle_right().get_triangle_center())
 
     def get_total_size(self) -> int:
         """
@@ -171,7 +255,10 @@ class Universe:
         """
         Check the validity of the triangulation.
         """
-        pass
+        # Check that each tetrahedron has 4 vertices and 4 neighbouring tetrahedra         
+        for i in self.tetrahedron_pool.get_objects():
+            assert len(i.get_vertices()) == 4
+            assert len(i.get_tetras()) == 4
 
     def save_to_file(self, filename):
         """
@@ -183,13 +270,6 @@ class Universe:
         with open(filename, 'wb') as file:
             pickle.dump(self.__dict__, file)
 
-    def load_from_file(self, filename):
-        """
-        Load the state of the Universe from a file using pickle.
 
-        Args:
-            filename (str): The name of the file to load the state from.
-        """
-        with open(filename, 'rb') as file:
-            state = pickle.load(file)
-        self.__dict__.update(state)
+if __name__ == "__main__":
+    u = Universe(geometry_infilename="initial_universes/output.txt")
