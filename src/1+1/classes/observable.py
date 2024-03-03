@@ -6,7 +6,7 @@
 # Description:
 
 
-class Observable(object):
+class Observable:
     """
     The Observable class provides some of the basic functionality
     that one may require when implementing certain observables.
@@ -15,4 +15,7 @@ class Observable(object):
         pass
 
     def update(self):
+        pass
+
+    def measure(self):
         pass

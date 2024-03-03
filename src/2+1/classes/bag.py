@@ -3,7 +3,7 @@ import numpy as np
 from typing import Optional, Set
 
 
-class Bag(object):
+class Bag:
     """
     The Bag class represents a bag of objects (pool indices) that can
     be added to and removed from. It is used to be able to pick random

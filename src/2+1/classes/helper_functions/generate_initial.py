@@ -27,6 +27,7 @@ import numpy as np
 
 
 def prepare_vertex_array_sphere(T):
+
     start = 0
     V = [] 
     for t in range(T):
@@ -833,45 +834,40 @@ def FindPairs(list_):
     return S
 
 
-if __name__ == "__main__":
-    g = int(sys.argv[1])
-    T = int(sys.argv[2])
+g = int(sys.argv[1])
+T = int(sys.argv[2])
 
-    if g == 0:
-        list3 = GenSphere(T)
+if g == 0:
+    list3 = GenSphere(T)
 
-    else:
-        S_center = GenCenter(g,T)
-        S_missing = GenMissing(g,T)
-        list3 = np.vstack((S_center,S_missing))
+else:
+    S_center = GenCenter(g,T)
+    S_missing = GenMissing(g,T)
+    list3 = np.vstack((S_center,S_missing))
+    
+#list2 = getTrianglelList(list3)
+#list1 = getLinklList(list2)
 
-        
-    #list2 = getTrianglelList(list3)
-    #list1 = getLinklList(list2)
+num0 = max(list3.flatten())+1
 
-    num0 = max(list3.flatten())+1
+#X = len(list3)-len(list2)+len(list1)-num0
+#print("\n N3,N2,N1,N0,X: ",len(list3),len(list2),len(list1),num0,X)
 
-    #X = len(list3)-len(list2)+len(list1)-num0
-
-    #print("\n N3,N2,N1,N0,X: ",len(list3),len(list2),len(list1),num0,X)
-
-    Simplex_list = FindPairs(list3)
+Simplex_list = FindPairs(list3)
 
 
-    if g > 0:
-        vertex = prepare_vertex_array(g,T)
-    else:
-        vertex = prepare_vertex_array_sphere(T)
+if g > 0:
+    vertex = prepare_vertex_array(g,T)
+else:
+    vertex = prepare_vertex_array_sphere(T)
 
 
-    dat = PrepDat(vertex,Simplex_list,list3)
+dat = PrepDat(vertex,Simplex_list,list3)
+outfile = sys.argv[3]
 
 
-    outfile = sys.argv[3]
-
-
-    with open(outfile, 'w') as file_handler:
-        file_handler.write("0\n")
-        for item in dat:
-            file_handler.write("{}\n".format(int(item)))
+with open(outfile, 'w') as file_handler:
+    file_handler.write("0\n")
+    for item in dat:
+        file_handler.write("{}\n".format(int(item)))
 

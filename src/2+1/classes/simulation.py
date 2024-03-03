@@ -3,15 +3,17 @@
 # Author: Seda den Boer
 # Date: 02-01-2024
 #
-# Description:
+# Description: Defines the Simulation class,
+# which is responsible for all procedures
+# related to the actual Monte Carlo simulation.
 
 import random
 import numpy as np
-import time
 from universe import Universe
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from triangle import Triangle
+    from universe import Universe
+    from observable import Observable
 
 
 class Simulation:
@@ -22,245 +24,583 @@ class Simulation:
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
     """
-    def __init__(self, universe: Universe, lambd: float):
-        self.universe = universe
-        self.lambd = lambd
-        self.add_count = 0
-        self.delete_count = 0
-        self.flip_count = 0
-        self.selected_add = 0
-        self.selected_delete = 0
-        self.selected_flip = 0
-        self.current_success = 0
-        self.move_freqs = [1, 1]
-        self.acceptance_rates = []
-        self.volume_changes = []
-        self.delete_rates = []
-        self.add_rates = []
-        self.flip_rates = []
-        self.ar_delete = []
-        self.ar_add = []
-        self.ar_flip = []
+    class constants:
+        N_VERTICES_TETRA = 4
+        N_VERTICES_TRIANGLE = 3
 
-    def get_acceptance_ratio_and_object(self, move_type: int) -> Tuple[float, int]:
-        """
-        Compute the acceptance ratio for a given move type.
-
-        Args:
-            move_type (int): Type of move (1: add, 2: delete, 3: flip).
-
-        Returns:
-            float: Acceptance ratio for the given move type.
-        """
-        # Get the number of vertices and vertices of degree four
-        n0 = self.universe.vertex_pool.get_number_occupied()
-        n0_four = self.universe.four_vertices_bag.get_number_occupied()
-
-        # Compute acceptance ratios for the different move types
-        if move_type == 1:
-            triangle_id = self.universe.triangle_add_bag.pick()
-            return (n0 / (n0_four + 1.0)) * np.exp(-2 * self.lambd), triangle_id
-        elif move_type == 2:
-            # If there are no vertices of degree four
-            if n0_four == 0:
-                return 0, 0
-            
-            vertex_id = self.universe.four_vertices_bag.pick()
-            return ((n0_four + 1.0) / n0) * np.exp(2 * self.lambd), vertex_id
-        elif move_type == 3:
-            ntf = self.universe.triangle_flip_bag.get_number_occupied()
-
-            # If there are no triangles to flip
-            if ntf == 0:
-                return 0, 0
-            
-            new_ntf = ntf
-
-            # Flip move needs a specific triangle to compute the acceptance ratio
-            triangle_id = self.universe.triangle_flip_bag.pick()
-            triangle: Triangle = self.universe.triangle_pool.get(triangle_id)
-
-            if triangle.type == triangle.get_triangle_right().get_triangle_right().type:
-                new_ntf += 1
-            else:
-                new_ntf -= 1
-
-            return (ntf / new_ntf), triangle_id
-
-        return 0
-
-    def mcmc_check(self, acceptance_ratio: float) -> bool:
-        """
-        Perform the MCMC check.
-
-        Args:
-            acceptance_ratio (float): Acceptance ratio for the move.
-
-        Returns:
-            bool: True if the move is accepted, False otherwise.
-        """
-        # Get the minimum of 1 and the acceptance ratio
-        min_acceptance_ratio = min(1, acceptance_ratio)
-
-        # Generate a random uniform number
-        random_number = np.random.uniform()
-
-        # Check if the move is accepted
-        if random_number < min_acceptance_ratio:
-            return True
-        
-        return False
+    def __init__(self, universe: Universe):
+        self.universe = universe 
+        self.k0 = 0
+        self.k3 = 0
+        self.target_volume = 0
+        self.target2_volume = 0
+        self.rng = random.Random(0)
+        self.epsilon = 0.00004
+        self.measuring = False
+        self.observables_3d = []
+        self.observables_2d = []
+        self.move_freqs = (0, 0, 0)
     
+    def start(self, k0: int, k3: int,
+                    sweeps: int, thermal_sweeps: int, k_steps: int,
+                    target_volume: int, target2_volume: int,
+                    seed: int, outfile: str,
+                    v1: int, v2: int, v3: int):
+        """
+        Starts the MCMC CDT 2+1 simulation.
+
+        Args:
+            k0 (int): The k0 parameter.
+            k3 (int): The k3 parameter.
+            sweeps (int): The number of sweeps to perform.
+            thermal_sweeps (int): The number of thermal sweeps to perform.
+            k_steps (int): The number of steps to perform in each sweep.
+            target_volume (int): The target volume of the simulation.
+            target2_volume (int): The target 2D volume of the simulation.
+            seed (int): The seed for the random number generator.
+            outfile (str): The output file for the simulation.
+            v1 (int): The first move frequency.
+            v2 (int): The second move frequency.
+            v3 (int): The third move frequency.
+        """
+        self.move_freqs = (v1, v2, v3)
+        self.k0 = k0
+        self.k3 = k3
+        self.target_volume = target_volume
+        self.target2_volume = target2_volume
+        self.rng.seed(seed)
+        self.measuring = True
+
+        # Clear observables
+        for o in self.observables_3d:
+            o.clear()
+        for o in self.observables_2d:
+            o.clear()
+        
+        # Thermal sweeps
+        print("========================================\n")
+        print("THERMAL SWEEPS\n")
+        print("----------------------------------------\n")
+        print(f"k0 = {k0}, k3 = {k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
+        print("----------------------------------------\n")
+
+        for i in range(1, thermal_sweeps + 1):
+            # Get the current state of the universe and print it
+            total_2v = sum(self.universe.slice_sizes)
+            n31 = self.universe.tetras_31.get_number_occupied()
+            n3 = self.universe.tetrahedron_pool.get_number_occupied()
+            print(f"Thermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k3: {self.k3} \n")
+
+            # Perform sweeps and tune the k3 parameter
+            self.perform_sweep(k_steps * 1000)
+            self.tune()
+
+            # Export the geometry every 10% of the thermal sweeps
+            if i % (thermal_sweeps / 10) == 0:
+                self.universe.export_geometry(outfile)
+            
+            # # Update geometry and measure observables related to 3D structures
+            # self.prepare()
+            # for o in self.observables_3d:
+            #     o.measure(self.universe)
+
+        # Main sweeps
+        print("========================================\n")
+        print("MAIN SWEEPS\n")
+        print("----------------------------------------\n")
+        print(f"k0 = {k0}, k3 = {k3}, epsilon = {self.epsilon}\n")
+        print("----------------------------------------\n")
+
+        for i in range(1, sweeps + 1):
+            # Get the current state of the universe and print it
+            total_2v = sum(self.universe.slice_sizes)
+            n31 = self.universe.tetras_31.get_number_occupied()
+            n3 = self.universe.tetrahedron_pool.get_number_occupied()
+            avg_2v = total_2v / self.universe.n_slices
+            print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target_2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
+
+            # Perform sweeps and tune the k3 parameter
+            self.perform_sweep(k_steps * 1000)
+
+            # Export the geometry every 10% of the main sweeps
+            if i % (sweeps / 10) == 0:
+                self.universe.export_geometry(outfile)
+            
+            # Check if there are any 3D observables to be measured
+            if len(self.observables_3d) > 0: 
+                # Remove if volume should fluctuate during measurements
+                vol_switch = self.universe.volfix_switch
+
+                # Ensure that the universe is at the target volume (if specified)
+                if target_volume > 0:
+                    # Flag to track if the target volume is reached
+                    compare = 0
+
+                    # Attempt moves until the target volume is reached
+                    while compare != target_volume:
+                        self.attempt_move()
+                        # Update the compare variable based on the volume switch
+                        compare = self.universe.tetras31.get_number_occupied() \
+                            if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
+
+                # # Update geometry and measure observables related to 3D structures
+                # self.prepare()
+                # for o in self.observables_3d:
+                #     o.measure(self.universe)
+            
+            # Check if there's a 2D target volume specified for the timeslices
+            if target2_volume > 0:
+                # Flag to track if the 2D target volume is reached
+                hit = False
+
+                # Attempt moves until the 2D target volume is reached
+                while not hit:
+                    self.attempt_move()
+
+                    # Check if any slice matches the 2D target volume
+                    for s in self.universe.slice_sizes:
+                         if s == target2_volume:
+                             hit = True
+                             break
+                
+                # # Update geometry and measure observables related to 2D structures
+                # self.prepare()
+                # for o in self.observables_2d:
+                #     o.measure(self.universe)
+
     def attempt_move(self) -> int:
         """
-        Attempt a move.
+        Attempt a move based on the move frequencies.
 
         Returns:
-            int: Move type (0: no move, 1: add, 2: delete, 3: flip).
+            int: The move number. 
+            1 for add, 2 for delete, 3 for flip, 4 for shift, 5 for inverse shift.
+            Negative numbers indicate failed moves.
         """
-        # Two bins for add/delete, and one for flip
-        cum_freqs = [0, 0]
-        tot_freq = 0
-        prev_cum_freq = 0
+        cum_freqs = np.cumsum(self.move_freqs)
+        freq_total = sum(self.move_freqs)
+       
+        # Generate a random number to select a move pair
+        move = self.rng.randint(0, freq_total)
 
-        # Calculate cumulative frequencies for the move types based on their frequencies
-        for i in range(len(self.move_freqs)):
-            # Every time a move is attempted, the total frequency is updated
-            tot_freq += self.move_freqs[i]
-            cum_freqs[i] = prev_cum_freq + self.move_freqs[i]
-            prev_cum_freq = cum_freqs[i]
-
-        # Pick a random number and a random bin to determine the move type
-        move = np.random.default_rng().integers(0, tot_freq)
-        # Pick a random bin [0,1] to determine between add and delete
-        bin_choice = np.random.default_rng().integers(0, 2)
-
-        # Get the acceptance ratio and the object for the move type
-        add_ar, add_triangle_id = self.get_acceptance_ratio_and_object(1)
-        flip_ar, flip_triangle_id = self.get_acceptance_ratio_and_object(3)
-        delete_ar, del_vertex_id = self.get_acceptance_ratio_and_object(2)
-
-        # If there are not enough vertices to delete, pick a new vertex
-        vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
-        slice_size = self.universe.slice_sizes[vertex_to_delete.time]
-        while slice_size < 3:
-            delete_ar, del_vertex_id = self.get_acceptance_ratio_and_object(2)
-            vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
-            slice_size = self.universe.slice_sizes[vertex_to_delete.time]
-
-        # Save the acceptance ratios for statistics
-        self.ar_add.append(add_ar)
-        self.ar_delete.append(delete_ar)
-        self.ar_flip.append(flip_ar)
-
-        # Choose between add/delete or flip 
         if move < cum_freqs[0]:
-            # Choose between add and delete based on bin_choice
-            if bin_choice == 0:
-                self.selected_add += 1
-                if self.mcmc_check(add_ar):
-                    # Perform the add move
-                    self.universe.insert_vertex(add_triangle_id)
-                    # print(f"Added vertex {add_triangle_id}")
-                    # self.universe.print_state()
-                    # print()
-                    self.add_count += 1
-                    return 1
+            # Add or delete move
+            if self.rng.randint(0, 1) == 0:
+                return 1 if self.move_add() else -1
             else:
-                self.selected_delete += 1
-                if self.mcmc_check(delete_ar):
-                    self.universe.remove_vertex(del_vertex_id)
-                    self.delete_count += 1
-                    # print(f"Deleted vertex {del_vertex_id}")
-                    # self.universe.print_state()
-                    # print()
-                    return 2
-        elif move >= cum_freqs[0]:
-            self.selected_flip += 1
-            if self.mcmc_check(flip_ar):
-                # Perform the flip move
-                self.universe.flip_edge(flip_triangle_id)
-                # print(f"Flipped triangle {flip_triangle_id}")
-                # self.universe.print_state()
-                # print()
-                return 3
-      
-        return 0
-    
-    def get_total_moves(self) -> int:
+                return 2 if self.move_delete() else -2
+        elif move < cum_freqs[1]:
+            # Flip move
+            return 3 if self.move_flip() else -3
+        else:
+            # Shift or inverse shift move
+            if self.rng.randint(0, 1) == 0:
+                # Shift (3,1) or (1,3) move
+                if self.rng.randint(0, 1) == 0:
+                    return 4 if self.move_shift_u() else -4
+                else:
+                    return 4 if self.move_shift_d() else -4
+            else:
+                # Inverse shift (3,1) or (1,3) move
+                if self.rng.randint(0, 1) == 0:
+                    return 5 if self.move_ishift_u() else -5
+                else:
+                    return 5 if self.move_ishift_d() else -5
+                
+    def perform_sweep(self, n: int) -> list[int]:
         """
-        Get the total number of performed moves.
-
-        Returns:
-            int: Total number of performed moves.
-        """
-        return self.add_count + self.delete_count + self.flip_count
-    
-    def progress_universe(self, steps: int, silence: bool = True):
-        """
-        Progress the universe by a given number of steps.
+        Perform a sweep of the simulation.
 
         Args:
-            steps (int): Number of steps to progress the universe.
-            silence (bool, optional): Whether to print progress. Defaults to False.
+            n (int): The number of moves to perform.
+
+        Returns:
+            list[int]: The number of moves performed for each move type.
         """
-        if not silence:
-            print(f"Vertices: {self.universe.vertex_pool.get_number_occupied()}, Triangles: {self.universe.triangle_pool.get_number_occupied()}")
+        moves = [0, 0, 0, 0, 0, 0]
+        failed_moves = [0, 0, 0, 0, 0, 0]
 
-        start = time.time()
+        # Perform n moves
+        for _ in range(n):
+            move_num = self.attempt_move()
+            move = abs(move_num)
 
-        for step in range(1, steps + 1):
-            # Attempt a move
-            move_type = self.attempt_move()
+            # Update the move counters
+            moves[move] += 1
+            if move_num < 0:
+                failed_moves[move] += 1
 
-            # Check validity of the universe
-            self.universe.check_validity()
+        # Calculate the total number of successful moves for each move type
+        total_moves_type1 = moves[1] + moves[2]
+        total_moves_type2 = moves[3]
+        total_moves_type3 = moves[4] + moves[5]
 
-            # Keep track of the number of successful moves
-            if move_type != 0:
-                self.current_success += 1
+        # Calculate the total number of failed moves for each move type
+        total_failed_moves_type1 = failed_moves[1] + failed_moves[2]
+        total_failed_moves_type2 = failed_moves[3]
+        total_failed_moves_type3 = failed_moves[4] + failed_moves[5]
+
+        # Adjust the counts if they are equal to avoid division by zero
+        if total_moves_type1 == total_failed_moves_type1:
+            total_moves_type1 += 2
+            total_failed_moves_type1 += 1
+
+        if total_moves_type2 == total_failed_moves_type2:
+            total_moves_type2 += 2
+            total_failed_moves_type2 += 1
+
+        if total_moves_type3 == total_failed_moves_type3:
+            total_moves_type3 += 2
+            total_failed_moves_type3 += 1
+
+        assert total_failed_moves_type1 > 0, "total_failed_moves_type1 must be greater than 0"
+        assert total_failed_moves_type2 > 0, "total_failed_moves_type2 must be greater than 0"
+        assert total_failed_moves_type3 > 0, "total_failed_moves_type3 must be greater than 0"
+
+        # Calculate the success rates for each move type
+        success_rate_type1 = total_moves_type1 / total_failed_moves_type1
+        success_rate_type2 = total_moves_type2 / total_failed_moves_type2
+        success_rate_type3 = total_moves_type3 / total_failed_moves_type3
+
+        # Print the success rates
+        print(f"Success Rate Type 1: {success_rate_type1}")
+        print(f"Success Rate Type 2: {success_rate_type2}")
+        print(f"Success Rate Type 3: {success_rate_type3}\n")
+
+        return moves
+
+    def mcmc_check(self, acceptance_probability: float) -> bool:
+        """
+        Metropolis-Hastings check for acceptance of a move.
+
+        Args:
+            acceptance_probability (float): The acceptance probability of the move.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        # Get the minimum between 1 and AP and generate random uniform number
+        min_acceptance_ratio = min(1, acceptance_probability)
+        random_number = self.rng.random()
+
+        # Reject
+        if random_number > min_acceptance_ratio:
+            return False
+        
+        # Accept
+        return True
+    
+    def move_add(self) -> bool:
+        """
+        Metropolis-Hastings move to add a tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        # Get relevant variables for calculating the add AP and calculate it
+        n31 = self.universe.tetras_31.get_number_occupied()
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        n0 = self.universe.vertex_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+        acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
+
+        # If the target volume is specified, adjust AP according to the volume switch
+        if self.target_volume > 0:
+            if vol_switch == 0:
+                acceptance_probability *= np.exp(
+                    4 * self.epsilon * (self.target_volume - n31 - 1))
+            else:
+                acceptance_probability *= np.exp(
+                    8 * self.epsilon * (self.target_volume - n3 - 2))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Perform the move
+        tetra31_label = self.universe.tetras_31.pick()
+        self.universe.add(tetra31_label)
+
+        return True
+    
+    def move_delete(self) -> bool:
+        """
+        Metropolis-Hastings move to delete a tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        # Get relevant variables for calculating the delete AP and calculate it
+        n31 = self.universe.tetras_31.get_number_occupied()
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        n0 = self.universe.vertex_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+        acceptance_probability = ((n0 + 1) / n31) * np.exp(
+            -self.k0 + 4 * self.k3)
+
+        # If the target volume is specified, adjust AP according to the volume switch
+        if self.target_volume > 0:
+            if vol_switch == 0:
+                acceptance_probability *= np.exp(
+                    -4 * self.epsilon * (self.target_volume - n31 - 1))
+            else:
+                acceptance_probability *= np.exp(
+                    -8 * self.epsilon * (self.target_volume - n3 - 2))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+     
+        # Get a random vertex
+        vertex_label = self.universe.vertex_pool.pick()
+        vertex = self.universe.vertex_pool.get(vertex_label)
+
+        # Check if the vertex is actually deletable
+        if vertex.cnum != 6 or vertex.scnum != 3:
+            return False
+        
+        # Perform the move
+        self.universe.delete(vertex_label)
+
+        return True
+    
+    def move_flip(self) -> bool:
+        """
+        Metropolis-Hastings move to flip a tetrahedron.
+        This move has an acceptance probability of 1.
+        
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        tetra012_label = self.universe.tetras_31.pick()
+        tetra012 = self.universe.tetrahedron_pool.get(tetra012_label)
+        
+        # Get random neighbour of tetra012
+        random_neighbour = self.rng.randint(0, 2)
+        tetra230 = tetra012.get_tetras()[random_neighbour]
+
+        #TODO: Check if the tetrahedron is actually flippable
+        # # Check if the tetrahedron is actually flippable
+        # if not tetra230.is_31() or not tetra012.get_tetras()[0].check_neighbours_tetra(tetra230.get_tetras()[3]):
+        #     return False
+        
+        # Try the move
+        return self.universe.flip(tetra012_label, tetra230.ID)
+
+    def move_shift_u(self) -> bool:
+        """
+        Metropolis-Hastings move to perform a shift move with a (3,1)-
+        tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        acceptance_probability = np.exp(-self.k3)
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+
+        if vol_switch == 1 and self.target_volume > 0:
+            acceptance_probability *= np.exp(
+                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Pick a random (3,1)-tetrahedron
+        tetra31_label = self.universe.tetras_31.pick()
+        tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
+
+        # Get random neighbour of tetra31
+        random_neighbour = self.rng.randint(0, 2)
+        tetra22 = tetra31.get_tetras()[random_neighbour]
+        
+        # Check if the tetrahedron is actually of type (2,2)
+        if not tetra22.is_22():
+            return False
+        
+        # Try the move
+        return self.universe.shift_u(tetra31_label, tetra22.ID)
+    
+    def move_ishift_u(self) -> bool:
+        """
+        Metropolis-Hastings move to perform an inverse shift move with a
+        (3,1)-tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        acceptance_probability = np.exp(self.k3)
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+
+        if vol_switch == 1 and self.target_volume > 0:
+            acceptance_probability *= np.exp(
+                -self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Pick a random (3,1)-tetrahedron
+        tetra31_label = self.universe.tetras_31.pick()
+        tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
+
+        # Get random neighbour of tetra31
+        random_neighbour = self.rng.randint(0, 2)
+        tetra22l = tetra31.get_tetras()[random_neighbour]
+        tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
+
+        # Check if the tetrahedron is actually of type (2,2) and if the neighbours are correct
+        if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
+            return False
+
+        # Count the number of shared vertices between tetra22l and tetra22r
+        shared_vertices = 0
+        for i in range(self.constants.N_VERTICES_TETRA):
+            if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
+                shared_vertices += 1
+
+        # If the number of shared vertices is not 3, the move is not valid
+        if shared_vertices != 3:
+            return False
+        
+        # Try the move
+        return self.universe.ishift_u(tetra31_label, tetra22l.ID, tetra22r.ID)
+
+    def move_shift_d(self) -> bool:
+        """
+        Metropolis-Hastings move to perform a shift move with a (1,3)-
+        tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        acceptance_probability = np.exp(-self.k3)
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+
+        if vol_switch == 1 and self.target_volume > 0:
+            acceptance_probability *= np.exp(
+                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Pick a random (1,3)-tetrahedron
+        tetra31_label = self.universe.tetras_31.pick()
+        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[0]
+
+        # Get random neighbour of tetra13
+        random_neighbour = self.rng.randint(1, 3)
+        tetra22 = tetra13.get_tetras()[random_neighbour]
+        
+        # Check if the tetrahedron is actually of type (2,2)
+        if not tetra22.is_22():
+            return False
+        
+        # Try the move
+        return self.universe.shift_d(tetra13.ID, tetra22.ID)
+
+    def move_ishift_d(self) -> bool:
+        """
+        Metropolis-Hastings move to perform an inverse shift move with a
+        (1,3)-tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        acceptance_probability = np.exp(self.k3)
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+
+        if vol_switch == 1 and self.target_volume > 0:
+            acceptance_probability *= np.exp(
+                -self.epsilon * (2 * self.target_volume - 2 * n3 -1))
             
-            # Save the total size of the universe
-            self.volume_changes.append(self.universe.get_total_size())
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Pick a random (1,3)-tetrahedron
+        tetra31_label = self.universe.tetras_31.pick()
+        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[0]
 
-            # Compute total acceptance rates
-            self.acceptance_rates.append(self.current_success / step)
+        # Get random neighbour of tetra13
+        random_neighbour = self.rng.randint(0, 2)
+        tetra22l = tetra13.get_tetras()[1 + random_neighbour]
+        tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
 
-            # Compute individual acceptance rates
-            if self.selected_delete != 0:
-                self.delete_rates.append(self.delete_count / self.selected_delete)
-            else:
-                self.delete_rates.append(0)
+        # Check if the tetrahedron is actually of type (2,2) and if the neighbours are correct
+        if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
+            return False
+        
+        # Count the number of shared vertices between tetra22l and tetra22r
+        shared_vertices = 0
+        for i in range(self.constants.N_VERTICES_TETRA):
+            if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
+                shared_vertices += 1
 
-            if self.selected_add != 0:
-                self.add_rates.append(self.add_count / self.selected_add)
-            else:
-                self.add_rates.append(0)
+        # If the number of shared vertices is not 3, the move is not valid
+        if shared_vertices != 3:
+            return False
+        
+        # Try the move
+        return self.universe.ishift_d(tetra13.ID, tetra22l.ID, tetra22r.ID)
 
-            if self.selected_flip != 0:
-                self.flip_rates.append(self.flip_count / self.selected_flip)
-            else:
-                self.flip_rates.append(0)
+    def prepare(self):
+        """
+        Prepares the universe for measurements in a sweep by updating the geometry.
+        """
+        self.universe.update_geometry()
 
-        end = time.time()
+    def tune(self):
+        """
+        Tunes the k3 parameter of the simulation based on the difference between the target volume and the fixvolume.
+        """
+        delta_k3 = 0.000001
+        ratio = 100
 
-        if not silence:
-            print("...")
-            print(f"Progressing the Universe {steps} steps took {end-start} seconds")
-            print(f"Rejections: {steps - self.current_success}, Acceptance rate: {self.current_success / steps:.5f}")
-            print(f"Add count: {self.add_count}, delete count: {self.delete_count}, flip count: {self.flip_count}")
-            print(f"Ratio delete / add: {self.delete_count / self.add_count:.5f}. Ratio add + delete / flip: {(self.add_count + self.delete_count) / self.flip_count:.5f}")
-            print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
-            print(f"Total number of triangles: {self.universe.triangle_pool.get_number_occupied()}")
-            print(f"Ratio of order 4 vertices and normal vertices: {self.universe.four_vertices_bag.get_number_occupied() / self.universe.vertex_pool.get_number_occupied():.5f}")
-            print()
+        # Define different borders based on the target volume (adaptive tuning)
+        border_far = self.target_volume * 0.5
+        border_close = self.target_volume * 0.05
+        border_vclose = self.target_volume * 0.002
+        border_vvclose = self.target_volume * 0.0001
+
+        # Calculate the fixvolume based on the vol_switch
+        vol_switch = self.universe.volfix_switch
+        fixvolume = 0
+        if vol_switch == 0:
+            fixvolume = self.universe.tetras_31.get_number_occupied()
+        else:
+            fixvolume = self.universe.tetrahedron_pool.get_number_occupied()
+
+        # Adjust k3 based on the difference between target volume and fixvolume
+        if (self.target_volume - fixvolume) > border_far:
+            self.k3 -= delta_k3 * ratio * 1000
+        elif (self.target_volume - fixvolume) < -border_far:
+            self.k3 += delta_k3 * ratio * 1000
+        elif (self.target_volume - fixvolume) > border_close:
+            self.k3 -= delta_k3 * 1000
+        elif (self.target_volume - fixvolume) < -border_close:
+            self.k3 += delta_k3 * 1000
+        elif (self.target_volume - fixvolume) > border_vclose:
+            self.k3 -= delta_k3 * 100
+        elif (self.target_volume - fixvolume) < -border_vclose:
+            self.k3 += delta_k3 * 100
+        elif (self.target_volume - fixvolume) > border_vvclose:
+            self.k3 -= delta_k3 * 20
+        elif (self.target_volume - fixvolume) < -border_vvclose:
+            self.k3 += delta_k3 * 20
 
 
 if __name__ == "__main__":
-    
-    # Set up the universe
-    universe = Universe(total_time=20, initial_slice_size=20)
-    simulation = Simulation(universe, lambd=np.log(2))
-
-    # Progress the universe
-    simulation.progress_universe(10000, silence=False)
+    universe = Universe(geometry_infilename='initial_universes/output.txt', strictness=0, volfix_switch=0)
+    # Start simulation
+    simulation = Simulation(universe)
+    simulation.start(
+        k0=0, k3=0, sweeps=10, thermal_sweeps=100, k_steps=1000,
+        target_volume=0, target2_volume=0, seed=0, outfile="output_test.txt",
+        v1=0, v2=0, v3=0
+    )

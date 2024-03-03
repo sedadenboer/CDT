@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from halfedge import HalfEdge
 
 
-class Pool(object):
+class Pool:
     """
     The Pool class represents a pool of indices that can be used to create
     and destroy objects. It is used to keep track of the objects that are

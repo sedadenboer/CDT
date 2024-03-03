@@ -26,13 +26,13 @@ class HalfEdge:
         triangle (Triangle): Triangle that contains this halfedge.
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.vs: list[Vertex] = [None, None]
-        self.adj: HalfEdge
-        self.next: HalfEdge
-        self.prev: HalfEdge
-        self.tetra: Tetrahedron
-        self.triangle: Triangle
+        self.adj: HalfEdge = None
+        self.next: HalfEdge = None
+        self.prev: HalfEdge = None
+        self.tetra: Tetrahedron = None
+        self.triangle: Triangle = None
 
     def set_vertices(self, ve: Vertex, vf: Vertex):
         self.vs[0] = ve
@@ -44,7 +44,7 @@ class HalfEdge:
     def get_adjacent(self) -> HalfEdge:
         return self.adj
 
-    def set_adj(self, he: HalfEdge):
+    def set_adjacent(self, he: HalfEdge):
         he.adj = self
         self.adj = he
     

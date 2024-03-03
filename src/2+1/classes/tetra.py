@@ -8,7 +8,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple, Union
 if TYPE_CHECKING:
-    from triangle import Triangle
     from vertex import Vertex
     from tetra import Tetrahedron
     from halfedge import HalfEdge
@@ -33,8 +32,8 @@ class Tetrahedron:
         TWOTWO = '22'
 
     def __init__(self) -> None:
-        self.ID: int
-        self.time: int
+        self.ID: int = -1
+        self.time: int = -1
         self.type: Union[Tetrahedron.Type, None] = None
         self.tnbr: Tuple[Tetrahedron] = ()
         self.vs: Tuple[Vertex] = ()
@@ -58,8 +57,7 @@ class Tetrahedron:
     
     def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex, v3: Vertex) -> None:
         """
-        Sets the vertices of the tetrahedron. v1, v2, and v0 make up the base 
-        of the tetrahedron, and v3 is the opposite vertex.
+        Sets the vertices of the tetrahedron.
 
         Args:
             v0 (Vertex): First vertex.
@@ -67,11 +65,11 @@ class Tetrahedron:
             v2 (Vertex): Third vertex.
             v3 (Vertex): Fourth vertex.
         """
-        if v0.time == v1.time and v0.time == v2.time:
+        if v0.time == v1.time == v2.time:
             self.type = Tetrahedron.Type.THREEONE
-        if v1.time == v2.time and v1.time == v3.time:
+        elif v1.time == v2.time == v3.time:
             self.type = Tetrahedron.Type.ONETHREE
-        if v0.time == v1.time and v2.time == v3.time:
+        elif v0.time == v1.time and v2.time == v3.time:
             self.type = Tetrahedron.Type.TWOTWO
 
         assert v0.time != v3.time
@@ -225,13 +223,14 @@ class Tetrahedron:
         Returns:
             Tetrahedron: The tetrahedron opposite to the given vertex.
         """
-        assert self.has_vertex(v)
+        assert self.has_vertex(v), f"Vertex {v.ID} is not in tetrahedron {self.ID}"
 
-        for i, v in enumerate(self.vs):
+        for i, v_i in enumerate(self.vs):
             if self.vs[i] == v:
                 return self.tnbr[i]
             
-        assert False
+        assert False, f"No tetrahedron opposite to vertex {v.ID} in tetrahedron {self.ID}"
+
 
     def get_vertex_opposite(self, v: Vertex) -> Vertex:
         """
@@ -243,13 +242,18 @@ class Tetrahedron:
         Returns:
             Vertex: The vertex opposite to the given vertex.
         """
-        opposite_tetra = self.get_tetra_opposite(v)
-        face_vertices = [v_other for v_other in opposite_tetra.vs if v_other != v]
-        for v_opposite in opposite_tetra.vs:
-            if v_opposite not in face_vertices:
-                return v_opposite
-            
-        assert False
+        tn = self.get_tetra_opposite(v)
+
+        face = []
+        for tv in self.vs:
+            if tv != v:
+                face.append(tv)
+
+        for tnv in tn.vs:
+            if tnv not in face:
+                return tnv
+
+        assert False, f"No vertex opposite to vertex {v.ID} in tetrahedron {self.ID}"
 
     def get_vertex_opposite_tetra(self, tn: Tetrahedron) -> Vertex:
         """
@@ -265,7 +269,7 @@ class Tetrahedron:
             if t == tn:
                 return self.vs[i]
             
-        assert False
+        assert False, f"No vertex opposite to tetrahedron {tn.ID} in tetrahedron {self.ID}"
     
     def exchange_tetra_opposite(self, v: Vertex, tn: Tetrahedron) -> None:
         """

@@ -24,8 +24,8 @@ class Vertex:
     """
     def __init__(self, time: int):
         self.time = time
-        self.ID: int
-        self.tetra: Tetrahedron
+        self.ID: int = -1
+        self.tetra: Tetrahedron = None
         self.cnum = 0
         self.scnum = 0
 

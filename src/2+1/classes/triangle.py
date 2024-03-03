@@ -22,7 +22,7 @@ class Triangle:
     """
 
     def __init__(self):
-        self.ID: int
+        self.ID: int = -1
         self.vs: Tuple[int] = ()
         self.hes: Tuple[int] = ()
         self.trnbr: Tuple[int] = ()
