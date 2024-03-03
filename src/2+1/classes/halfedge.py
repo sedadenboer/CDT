@@ -27,6 +27,9 @@ class HalfEdge:
     """
 
     def __init__(self):
+        """
+        Initializes a new instance of the HalfEdge class.
+        """
         self.vs: list[Vertex] = [None, None]
         self.adj: HalfEdge = None
         self.next: HalfEdge = None
@@ -35,39 +38,105 @@ class HalfEdge:
         self.triangle: Triangle = None
 
     def set_vertices(self, ve: Vertex, vf: Vertex):
+        """
+        Set the vertices of the halfedge.
+
+        Args:
+            ve (Vertex): First vertex
+            vf (Vertex): Second vertex
+        """
         self.vs[0] = ve
         self.vs[1] = vf
     
     def get_vertices(self) -> list[Vertex]:
+        """
+        Get the vertices of the halfedge.
+
+        Returns:
+            list[Vertex]: List of vertices
+        """
         return self.vs
 
     def get_adjacent(self) -> HalfEdge:
+        """
+        Get the adjacent halfedge, i.e. edges that
+        share the same vertices.
+
+        Returns:
+            HalfEdge: Adjacent halfedge
+        """
         return self.adj
 
     def set_adjacent(self, he: HalfEdge):
+        """
+        Set the adjacent halfedge, i.e. edges that
+        share the same vertices.
+
+        Args:
+            he (HalfEdge): Adjacent halfedge
+        """
         he.adj = self
         self.adj = he
     
-    def get_adj(self) -> HalfEdge:
-        return self.adj
-    
     def set_next(self, he: HalfEdge):
+        """
+        Set the next halfedge.
+
+        Args:
+            he (HalfEdge): Next halfedge
+        """
         self.next = he
     
     def get_next(self) -> HalfEdge:
+        """
+        Get the next halfedge.
+
+        Returns:
+            HalfEdge: Next halfedge
+        """
         return self.next
     
-    def set_prev(self, he: HalfEdge):
+    def set_previous(self, he: HalfEdge):
+        """
+        Set the previous halfedge.
+
+        Args:
+            he (HalfEdge): Previous halfedge
+        """
         self.prev = he
     
     def set_tetra(self, t: Tetrahedron):
+        """
+        Set the tetrahedron that contains this halfedge.
+
+        Args:
+            t (Tetrahedron): Tetrahedron
+        """
         self.tetra = t
     
     def get_tetra(self) -> Tetrahedron:
+        """
+        Get the tetrahedron that contains this halfedge.
+
+        Returns:
+            Tetrahedron: Tetrahedron
+        """
         return self.tetra
     
     def set_triangle(self, t: Triangle):
+        """
+        Set the triangle that contains this halfedge.
+
+        Args:
+            t (Triangle): Triangle 
+        """
         self.triangle = t
     
     def get_triangle(self) -> Triangle:
+        """
+        Get the triangle that contains this halfedge.
+
+        Returns:
+            Triangle: Triangle
+        """
         return self.triangle

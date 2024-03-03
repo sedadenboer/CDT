@@ -6,7 +6,7 @@
 # Description: The Universe class that represents the current state of the triangulation.
 
 from __future__ import annotations
-from typing import cast
+from copy import deepcopy
 from vertex import Vertex
 from halfedge import HalfEdge
 from triangle import Triangle
@@ -220,6 +220,7 @@ class Universe:
         # print(f"types_31: {types_31}\n")
         # print(f"types_13: {types_13}\n")
         # print(f"types_22: {types_22}\n")
+
         return True
 
     def add(self, tetra31_id: int) -> bool:
@@ -237,7 +238,8 @@ class Universe:
         t = self.tetrahedron_pool.get(tetra31_id)
         time = t.get_vertices()[0].time
         assert t.is_31()
-        tv = t.get_tetras()[3]
+        # Opposite tetrahedron
+        tv = t.get_tetras()[0]
         assert tv.is_13()
 
         # Create a new vertex and update its cnum and scnum
@@ -246,7 +248,7 @@ class Universe:
         vertex.cnum = Universe.Constants.CNUM_ADD
         vertex.scnum = Universe.Constants.SCNUM_ADD
 
-        # Get relevant vertices of the two tetrahedra
+        # Get relevant vertices of the two tetrahedra, vt=vtop, vb=vbottom
         v0, v1, v2, vt = t.get_vertices()
         vb = tv.get_vertices()[0]
 
@@ -264,7 +266,7 @@ class Universe:
         for t in [tn01, tn12, tn20]:
             self.tetras_31.add(t.ID)
 
-        # Get neighbouring tetrahedra of the two oppsoing tetrahedra
+        # Get neighbouring tetrahedra of the two opposing tetrahedra
         to0 = t.get_tetra_opposite(v0)
         to1 = t.get_tetra_opposite(v1)
         to2 = t.get_tetra_opposite(v2)
@@ -284,6 +286,9 @@ class Universe:
         tn01.set_tetras(tn12, tn20, to2, tvn01)
         tn12.set_tetras(tn20, tn01, to0, tvn12)
         tn20.set_tetras(tn01, tn12, to1, tvn20)
+        tvn01.set_tetras(tn01, tvn12, tvn20, tvo2)
+        tvn12.set_tetras(tn12, tvn20, tvn01, tvo0)
+        tvn20.set_tetras(tn20, tvn01, tvn12, tvo1)
         
         # Exchange given tetrahedron for the given vertex with opposite tetrahedron
         to0.exchange_tetra_opposite(t.get_vertex_opposite(v0), tn12)
@@ -329,7 +334,7 @@ class Universe:
         assert vertex.scnum == Universe.Constants.SCNUM_ADD
         time = vertex.time
         t01 = vertex.get_tetra()
-        tv01 = t01.get_tetras()[3]
+        tv01 = t01.get_tetras()[0]
 
         # Get the vertex index in the tetrahedron
         vpos = t01.get_vertices().index(vertex)
@@ -367,7 +372,7 @@ class Universe:
         self.tetrahedron_pool.occupy(tvn)
         self.tetras_31.add(tn.ID)
 
-        # Get apex and base vertex
+        # Get apex of oppposing tetrahedra
         vt = t01.get_vertices()[3]
         vb = tv01.get_vertices()[0]
 
@@ -432,15 +437,15 @@ class Universe:
         # Get the vertices of the base triangles
         v1 = t012.get_vertex_opposite_tetra(t230)
         v3 = t230.get_vertex_opposite_tetra(t012)
-        for i in range(3):
+        for i in range(self.Constants.N_VERTICES_TRIANGLE):
             if t012.get_vertices()[i] == v1:
                 v2 = t012.get_vertices()[(i + 1) % 3]
                 v0 = t012.get_vertices()[(i + 2) % 3]
                 break
         
         # Get the opposite tetrahedra
-        tv012 = t012.get_tetras()[3]
-        tv230 = t230.get_tetras()[3]
+        tv012 = t012.get_tetras()[0]
+        tv230 = t230.get_tetras()[0] if tv230.is_31() else t230.get_tetras()[3]
 
         if self.strictness >= 1 and v1 == v3:
             return False
@@ -450,9 +455,9 @@ class Universe:
         if self.strictness >= 3 and v1.check_vertex_neighbour(v3):
             return False
 
-        # Get apex and base vertex
+        # Get apex of the opposing tetrahedra
         vt = t012.get_vertices()[3]
-        vb = tv012.get_vertices()[0]
+        vb = tv012.get_vertices()[0] if tv012.is_13() else tv012.get_vertices()[3]
 
         # Get opposite neighbouring tetrahedra for initial connected vertices
         ta01 = t012.get_tetra_opposite(v2)
@@ -562,15 +567,15 @@ class Universe:
         tn22l.set_vertices(v0, v2, v1, v3)
         tn22r.set_vertices(v0, v4, v1, v3)
 
-        tn31.set_tetras(ta124, tn22r, tn22l, t31.tnbr[3])
+        tn31.set_tetras(ta124, tn22r, tn22l, t31.get_tetras()[0])
         tn22l.set_tetras(ta123, tn22r, ta023, tn31)
         tn22r.set_tetras(ta134, tn22l, ta034, tn31)
 
         time = tn31.get_vertices()[0].time
         self.slab_sizes[time] += 1
 
-        t31.get_tetras()[3].exchange_tetra_opposite(
-            t31.get_tetras()[3].get_vertices()[0], tn31
+        t31.get_tetras()[0].exchange_tetra_opposite(
+            t31.get_tetras()[0].get_vertices()[3], tn31
         )
 
         ta023.exchange_tetra_opposite(t31.get_vertex_opposite(v4), tn22l)
@@ -640,8 +645,8 @@ class Universe:
         tn31.set_tetras(tn22, ta034, ta023, t31.get_tetras()[3])
         tn22.set_tetras(ta134, ta123, tn31, ta124)
 
-        t31.get_tetras()[3].exchange_tetra_opposite(
-            t31.get_tetras()[3].get_vertices()[0], tn31
+        t31.get_tetras()[0].exchange_tetra_opposite(
+            t31.get_tetras()[0].get_vertices()[0], tn31
         )
         ta023.exchange_tetra_opposite(t22l.get_vertex_opposite(v1), tn31)
         ta034.exchange_tetra_opposite(t22r.get_vertex_opposite(v1), tn31)
@@ -682,7 +687,7 @@ class Universe:
         t13 = self.tetrahedron_pool.get(tetra13_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
         # Only because spatial ordering of (1,3)-tetrahedra is currently not guaranteed
-        t31 = t13.get_tetras()[0]
+        t31 = t13.get_tetras()[3]
 
         v0 = t13.get_vertex_opposite_tetra(t22)
         v1 = t22.get_vertex_opposite_tetra(t13)
@@ -690,9 +695,9 @@ class Universe:
         v0pos = t13.get_vertices().index(v0)
         assert v0pos >= 0
 
-        v2 = t31.vs[(v0pos + 1) % 3]
-        v4 = t31.vs[(v0pos + 2) % 3]
-        v3 = t13.vs[0]
+        v2 = t31.get_vertices()[(v0pos + 1) % 3]
+        v4 = t31.get_vertices()[(v0pos + 2) % 3]
+        v3 = t13.get_vertices()[0]
 
         ta023 = t13.get_tetra_opposite(v4)
         ta034 = t13.get_tetra_opposite(v2)
@@ -715,7 +720,7 @@ class Universe:
         tn13.set_vertices(v1, v0, v2, v4)
         tn22l.set_vertices(v1, v3, v0, v2)
         tn22r.set_vertices(v1, v3, v0, v4)
-        tn13.set_tetras(t31.get_tetras()[0], ta124, tn22r, tn22l)
+        tn13.set_tetras(t13.get_tetras()[3], ta124, tn22r, tn22l)
         tn22l.set_tetras(ta023, tn13, ta123, tn22r)
         tn22r.set_tetras(ta034, tn13, ta134, tn22l)
 
@@ -758,7 +763,7 @@ class Universe:
         t13 = self.tetrahedron_pool.get(tetra13_id)
         t22l = self.tetrahedron_pool.get(tetra22_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
-        t31 = t13.get_tetras()[0]
+        t31 = t13.get_tetras()[3]
         
         v1 = t13.get_vertices()[0]
         v3 = t22l.get_vertex_opposite_tetra(t13)
@@ -815,7 +820,6 @@ class Universe:
         Update the vertices of the Universe.
         """
         # Free all vertices in the pool
-        self.vertex_pool.free_all()
         self.vertex_neighbours.clear()
         self.vertex_neighbours = [None] * self.vertex_pool.get_number_occupied()
 
@@ -860,6 +864,7 @@ class Universe:
         """
         # Free all triangles in the pool
         self.triangle_pool.free_all()
+        assert self.triangle_pool.get_number_occupied() == 0
         
         # Get tetras31 
         tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.used_indices]
@@ -869,21 +874,12 @@ class Universe:
             triangle = Triangle()
             self.triangle_pool.occupy(triangle)
             
+            # Triangle is defined by base vertices of the tetrahedron
             triangle.set_vertices(t.get_vertices()[0], t.get_vertices()[1], t.get_vertices()[2])
-            triangle.set_half_edges(t.get_half_edges()[0], t.get_half_edges()[1], t.get_half_edges()[2])
-
+            
             # Set the triangle of the tetrahedron
             for he in t.get_half_edges():
                 he.set_triangle(triangle)
-        
-        self.triangle_neighbours = [None] * self.triangle_pool.get_number_occupied()
-
-        for triangle in self.triangle_pool.get_objects():
-            triangle.set_triangle_neighbours(triangle.get_half_edges()[0].get_adjacent().get_triangle(),
-                                             triangle.get_half_edges()[1].get_adjacent().get_triangle(),
-                                             triangle.get_half_edges()[2].get_adjacent().get_triangle())
-
-            self.triangle_neighbours[triangle.ID] = triangle.get_triangle_neighbours()
 
     def update_halfedges(self):
         """
@@ -912,60 +908,17 @@ class Universe:
             # Connect the halfedges in a circular list
             for i in range(self.Constants.N_HALFEDGES_TETRA):
                 halfedge_triples[i].set_next(halfedge_triples[(i + 1) % 3])
-                halfedge_triples[i].set_prev(halfedge_triples[(i + 2) % 3])
+                halfedge_triples[i].set_previous(halfedge_triples[(i + 2) % 3])
         
-        # Connect the halfedges of the tetrahedra
-        for tetra in tetras31_objs:
-            he_id_str = []
-            for he in tetra.get_half_edges():
-                if he:
-                    he_id_str.append(str(he.ID))
-                else:
-                    he_id_str.append('None')
-            print(f"tetra: {tetra.ID}, he: {he_id_str}")
-            for i in range(self.Constants.N_VERTICES_TRIANGLE):
-                # Get the current vertex and the opposite vertex of the face
-                vertex = tetra.get_vertices()[i]
-                vertex_t = tetra.get_vertices()[3]
-
-                # Get the opposite tetrahedron along the edge
-                tetra_opposite = tetra.get_tetra_opposite(vertex)
-                # Update the current vertex to the opposite vertex
-                vertex = vertex_t
-                
-                # Iterate until the adjacent tetrahedron is not a (2,2)-simplex
-                while tetra_opposite.is_22():
-                    # Get the new opposite tetrahedron
-                    new_tetra = tetra_opposite.get_tetra_opposite(vertex)
-
-                    # Update the current vertex to the next vertex along the edge
-                    previous_vertex = vertex
-                    vertex = tetra_opposite.get_vertices()[2] if tetra_opposite.get_vertices()[2] == vertex \
-                        else tetra_opposite.get_vertices()[3]
-
-                    # Check if the next tetrahedron is also a (2,2)-simplex
-                    if new_tetra.is_22():
-                        # Assert conditions to ensure consistent edge connections
-                        if previous_vertex == tetra_opposite.get_vertices()[2]:
-                            assert vertex == tetra_opposite.get_vertices()[3], \
-                                f"previous_vertex: {previous_vertex.ID}, vertex: {vertex.ID}, \
-                                    tetra_opposite: \{tetra_opposite.ID}, new_tetra: {new_tetra.ID}"
-                        if previous_vertex == tetra_opposite.get_vertices()[3]:
-                            assert vertex == tetra_opposite.get_vertices()[2], \
-                                f"previous_vertex: {previous_vertex.ID}, vertex: {vertex.ID}, \
-                                    tetra_opposite: {tetra_opposite.ID}, new_tetra: {new_tetra.ID}"
+        # # Set the adjacent opposite halfedges
+        # for t in tetras31_objs:
+        #     opposite = t.get_tetras()[0]
+        #     for he in t.get_half_edges():
+        #         for he_opposite in opposite.get_half_edges():
+        #             if he.get_vertices() == he_opposite.get_vertices()[::-1] or he.get_vertices() == he_opposite.get_vertices():
+        #                 he.set_adjacent(he_opposite)
                     
-                    # Update the current tetrahedron to the next tetrahedron
-                    tetra_opposite = new_tetra
-
-                # assert tetra_opposite.is_13(), f"tetra_opposite: {tetra_opposite.ID}, type: {tetra_opposite.type}"
                 
-                # Link the current half edge and the half edge in the adjacent tetrahedron
-                current_half_edge = tetra.get_half_edges()[(i + 1) % 3]
-                adjacent_half_edge = tetra_opposite.get_half_edge_to(tetra.get_vertices()[(i + 1) % 3])
-                current_half_edge.set_adjacent(adjacent_half_edge)
-                adjacent_half_edge.set_adjacent(current_half_edge)
-
     def get_total_size(self) -> int:
         """
         Get the total size of the triangulation.
@@ -981,7 +934,7 @@ class Universe:
         """
         self.update_vertices()
         self.update_halfedges()
-        # self.update_triangles()
+        self.update_triangles()
 
     def check_validity(self):
         """
@@ -1096,5 +1049,5 @@ class Universe:
 
 if __name__ == "__main__":
     u = Universe(geometry_infilename="initial_universes/output.txt")
-    # u.update_geometry()
+    u.update_geometry()
     u.check_validity()

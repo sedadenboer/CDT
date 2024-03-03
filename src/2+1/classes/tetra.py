@@ -134,7 +134,7 @@ class Tetrahedron:
             HalfEdge: The halfedge of the tetrahedron that ends at the given vertex.
         """
         for he in self.hes:
-            if he.vs[1] == v:
+            if he.get_vertices()[1] == v:
                 return he
             
         return None
