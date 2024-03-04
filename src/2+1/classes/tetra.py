@@ -35,9 +35,9 @@ class Tetrahedron:
         self.ID: int = -1
         self.time: int = -1
         self.type: Union[Tetrahedron.Type, None] = None
-        self.tnbr: Tuple[Tetrahedron] = ()
-        self.vs: Tuple[Vertex] = ()
-        self.hes: Tuple[HalfEdge] = ()
+        self.tnbr: list[Tetrahedron] = []
+        self.vs: list[Vertex] = []
+        self.hes: list[HalfEdge] = []
 
     def to_string(self, t: Type) -> str:
         """
@@ -74,7 +74,7 @@ class Tetrahedron:
 
         assert v0.time != v3.time
         
-        self.vs = (v0, v1, v2, v3)
+        self.vs = [v0, v1, v2, v3]
         self.time = v0.time
     
     def get_vertices(self) -> list[Vertex]:
@@ -96,7 +96,7 @@ class Tetrahedron:
             h1 (HalfEdge): Second halfedge.
             h2 (HalfEdge): Third halfedge.
         """
-        self.hes = (h0, h1, h2)
+        self.hes = [h0, h1, h2]
     
     def get_half_edges(self) -> list[HalfEdge]:
         """
@@ -151,7 +151,7 @@ class Tetrahedron:
             t2 (Tetrahedron): Third tetrahedron.
             t3 (Tetrahedron): Fourth tetrahedron.
         """
-        self.tnbr = (t0, t1, t2, t3)
+        self.tnbr = [t0, t1, t2, t3]
 
     def get_tetras(self) -> list[Tetrahedron]:
         """

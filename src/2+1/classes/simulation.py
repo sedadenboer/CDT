@@ -40,6 +40,9 @@ class Simulation:
         self.observables_3d = []
         self.observables_2d = []
         self.move_freqs = (0, 0, 0)
+        self.k3_values = []
+        self.total_vertices = []
+        self.total_tetras = []
     
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
@@ -95,6 +98,9 @@ class Simulation:
             self.perform_sweep(k_steps * 1000)
             self.tune()
 
+            self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
+            self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
+
             # Export the geometry every 10% of the thermal sweeps
             if i % (thermal_sweeps / 10) == 0:
                 self.universe.export_geometry(outfile)
@@ -121,6 +127,9 @@ class Simulation:
 
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps * 1000)
+
+            self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
+            self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
             # Export the geometry every 10% of the main sweeps
             if i % (sweeps / 10) == 0:
@@ -181,7 +190,7 @@ class Simulation:
         freq_total = sum(self.move_freqs)
        
         # Generate a random number to select a move pair
-        move = self.rng.randint(0, freq_total)
+        move = self.rng.randint(0, 2)
 
         if move < cum_freqs[0]:
             # Add or delete move
@@ -230,42 +239,9 @@ class Simulation:
             if move_num < 0:
                 failed_moves[move] += 1
 
-        # Calculate the total number of successful moves for each move type
-        total_moves_type1 = moves[1] + moves[2]
-        total_moves_type2 = moves[3]
-        total_moves_type3 = moves[4] + moves[5]
-
-        # Calculate the total number of failed moves for each move type
-        total_failed_moves_type1 = failed_moves[1] + failed_moves[2]
-        total_failed_moves_type2 = failed_moves[3]
-        total_failed_moves_type3 = failed_moves[4] + failed_moves[5]
-
-        # Adjust the counts if they are equal to avoid division by zero
-        if total_moves_type1 == total_failed_moves_type1:
-            total_moves_type1 += 2
-            total_failed_moves_type1 += 1
-
-        if total_moves_type2 == total_failed_moves_type2:
-            total_moves_type2 += 2
-            total_failed_moves_type2 += 1
-
-        if total_moves_type3 == total_failed_moves_type3:
-            total_moves_type3 += 2
-            total_failed_moves_type3 += 1
-
-        assert total_failed_moves_type1 > 0, "total_failed_moves_type1 must be greater than 0"
-        assert total_failed_moves_type2 > 0, "total_failed_moves_type2 must be greater than 0"
-        assert total_failed_moves_type3 > 0, "total_failed_moves_type3 must be greater than 0"
-
-        # Calculate the success rates for each move type
-        success_rate_type1 = total_moves_type1 / total_failed_moves_type1
-        success_rate_type2 = total_moves_type2 / total_failed_moves_type2
-        success_rate_type3 = total_moves_type3 / total_failed_moves_type3
-
-        # Print the success rates
-        print(f"Success Rate Type 1: {success_rate_type1}")
-        print(f"Success Rate Type 2: {success_rate_type2}")
-        print(f"Success Rate Type 3: {success_rate_type3}\n")
+        # Print the succes rate for each move
+        print(f"Add: {moves[1]} \t Delete: {moves[2]} \t Flip: {moves[3]} \t Shift: {moves[4]} \t Inverse Shift: {moves[5]}")
+        print(f"Failed Add: {failed_moves[1]} \t Failed Delete: {failed_moves[2]} \t Failed Flip: {failed_moves[3]} \t Failed Shift: {failed_moves[4]} \t Failed Inverse Shift: {failed_moves[5]}")
 
         return moves
 
@@ -379,10 +355,9 @@ class Simulation:
         random_neighbour = self.rng.randint(0, 2)
         tetra230 = tetra012.get_tetras()[random_neighbour]
 
-        #TODO: Check if the tetrahedron is actually flippable
-        # # Check if the tetrahedron is actually flippable
-        # if not tetra230.is_31() or not tetra012.get_tetras()[0].check_neighbours_tetra(tetra230.get_tetras()[3]):
-        #     return False
+        # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
+        if not tetra230.is_31() or not tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
+            return False
         
         # Try the move
         return self.universe.flip(tetra012_label, tetra230.ID)
@@ -422,6 +397,41 @@ class Simulation:
         # Try the move
         return self.universe.shift_u(tetra31_label, tetra22.ID)
     
+    def move_shift_d(self) -> bool:
+        """
+        Metropolis-Hastings move to perform a shift move with a (1,3)-
+        tetrahedron.
+
+        Returns:
+            bool: True if the move was accepted, False otherwise.
+        """
+        acceptance_probability = np.exp(-self.k3)
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        vol_switch = self.universe.volfix_switch
+
+        if vol_switch == 1 and self.target_volume > 0:
+            acceptance_probability *= np.exp(
+                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+        # Perform MCMC check for acceptance
+        if not self.mcmc_check(acceptance_probability):
+            return False
+        
+        # Pick a random (1,3)-tetrahedron
+        tetra31_label = self.universe.tetras_31.pick()
+        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
+
+        # Get random neighbour of tetra13
+        random_neighbour = self.rng.randint(1, 3)
+        tetra22 = tetra13.get_tetras()[random_neighbour]
+        
+        # Check if the tetrahedron is actually of type (2,2)
+        if not tetra22.is_22():
+            return False
+        
+        # Try the move
+        return self.universe.shift_d(tetra13.ID, tetra22.ID)
+
     def move_ishift_u(self) -> bool:
         """
         Metropolis-Hastings move to perform an inverse shift move with a
@@ -468,41 +478,6 @@ class Simulation:
         # Try the move
         return self.universe.ishift_u(tetra31_label, tetra22l.ID, tetra22r.ID)
 
-    def move_shift_d(self) -> bool:
-        """
-        Metropolis-Hastings move to perform a shift move with a (1,3)-
-        tetrahedron.
-
-        Returns:
-            bool: True if the move was accepted, False otherwise.
-        """
-        acceptance_probability = np.exp(-self.k3)
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
-
-        if vol_switch == 1 and self.target_volume > 0:
-            acceptance_probability *= np.exp(
-                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-
-        # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
-            return False
-        
-        # Pick a random (1,3)-tetrahedron
-        tetra31_label = self.universe.tetras_31.pick()
-        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[0]
-
-        # Get random neighbour of tetra13
-        random_neighbour = self.rng.randint(1, 3)
-        tetra22 = tetra13.get_tetras()[random_neighbour]
-        
-        # Check if the tetrahedron is actually of type (2,2)
-        if not tetra22.is_22():
-            return False
-        
-        # Try the move
-        return self.universe.shift_d(tetra13.ID, tetra22.ID)
-
     def move_ishift_d(self) -> bool:
         """
         Metropolis-Hastings move to perform an inverse shift move with a
@@ -525,10 +500,11 @@ class Simulation:
         
         # Pick a random (1,3)-tetrahedron
         tetra31_label = self.universe.tetras_31.pick()
-        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[0]
+        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
 
-        # Get random neighbour of tetra13
+        # Get random (2,2) neighbours of tetra13
         random_neighbour = self.rng.randint(0, 2)
+        # Actually the nieghbours are ordered
         tetra22l = tetra13.get_tetras()[1 + random_neighbour]
         tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
 
@@ -557,7 +533,8 @@ class Simulation:
 
     def tune(self):
         """
-        Tunes the k3 parameter of the simulation based on the difference between the target volume and the fixvolume.
+        Tunes the k3 parameter of the simulation based on the difference between the
+        target volume and the fixvolume.
         """
         delta_k3 = 0.000001
         ratio = 100
@@ -594,13 +571,15 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
+        # Append the k3 value to the list
+        self.k3_values.append(self.k3)
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/output.txt', strictness=0, volfix_switch=0)
     # Start simulation
     simulation = Simulation(universe)
     simulation.start(
-        k0=0, k3=0, sweeps=10, thermal_sweeps=100, k_steps=1000,
-        target_volume=0, target2_volume=0, seed=0, outfile="output_test.txt",
+        k0=1, k3=0, sweeps=10, thermal_sweeps=100, k_steps=100,
+        target_volume=500, target2_volume=0, seed=0, outfile="output_test.txt",
         v1=0, v2=0, v3=0
     )

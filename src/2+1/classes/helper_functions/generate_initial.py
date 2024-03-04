@@ -786,52 +786,52 @@ def GenSphere(T):
         
     return np.asarray(Simps)
 
-def FindPairs(list_):
-    S = []
-    for i in range(len(list_)):
-        TRI = []
-        simp = list_[i]
+def FindPairs(simplices):
+    pairs = []
+    for i in range(len(simplices)):
+        triangle_pairs = []
+        simplex = simplices[i]
 
-        p0 = simp[0]
-        p1 = simp[1]
-        p2 = simp[2]
-        p3 = simp[3]   
+        p0 = simplex[0]
+        p1 = simplex[1]
+        p2 = simplex[2]
+        p3 = simplex[3]   
 
-        TRI.append([p0,p1,p2])
-        TRI.append([p0,p1,p3])
-        TRI.append([p0,p2,p3])
-        TRI.append([p1,p2,p3])
+        triangle_pairs.append([p0, p1, p2])
+        triangle_pairs.append([p0, p1, p3])
+        triangle_pairs.append([p0, p2, p3])
+        triangle_pairs.append([p1, p2, p3])
 
-        A = []
+        adjacent_triangles = []
 
-        for tri in TRI:
-            tp0 = tri[0]
-            tp1 = tri[1]
-            tp2 = tri[2]
+        for triangle in triangle_pairs:
+            tp0 = triangle[0]
+            tp1 = triangle[1]
+            tp2 = triangle[2]
 
-            lista0 = np.argwhere(list3.T == tp0).T[1]
-            lista1 = np.argwhere(list3.T == tp1).T[1]
-            lista2 = np.argwhere(list3.T == tp2).T[1]
+            indices0 = np.argwhere(simplices.T == tp0).T[1]
+            indices1 = np.argwhere(simplices.T == tp1).T[1]
+            indices2 = np.argwhere(simplices.T == tp2).T[1]
 
-            ov01 = list((set(lista0).intersection(lista1)))
-            ov12 = list((set(lista1).intersection(lista2)))
+            overlap01 = list((set(indices0).intersection(indices1)))
+            overlap12 = list((set(indices1).intersection(indices2)))
 
-            triangle = list((set(ov01).intersection(ov12)))
+            adjacent_triangle = list((set(overlap01).intersection(overlap12)))
 
-            A.append(triangle)
-        p = np.unique(A)
-        f = []
-        for item in p:
+            adjacent_triangles.append(adjacent_triangle)
+        unique_pairs = np.unique(adjacent_triangles)
+        filtered_pairs = []
+        for item in unique_pairs:
             if item != i:
-                f.append(item)
+                filtered_pairs.append(item)
 
-        f = np.asarray(f)
+        filtered_pairs = np.asarray(filtered_pairs)
 
-        S.append(f)
+        pairs.append(filtered_pairs)
 
-    S = np.asarray(S)
+    pairs = np.asarray(pairs)
 
-    return S
+    return pairs
 
 
 g = int(sys.argv[1])
