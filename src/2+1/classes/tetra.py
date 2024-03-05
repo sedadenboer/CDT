@@ -234,7 +234,7 @@ class Tetrahedron:
 
     def get_vertex_opposite(self, v: Vertex) -> Vertex:
         """
-        Returns the vertex opposite to the given vertex.
+        Returns the vertex opposite to the given vertex in the opposite tetrahedron.
 
         Args:
             v (Vertex): The vertex to find the opposite vertex for.

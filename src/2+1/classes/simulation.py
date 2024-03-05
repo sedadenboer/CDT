@@ -461,7 +461,7 @@ class Simulation:
         tetra22l = tetra31.get_tetras()[random_neighbour]
         tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
 
-        # Check if the tetrahedron is actually of type (2,2) and if the neighbours are correct
+        # Check if the tetrahedron is actually of type (2,2) and if the (2,2) tetras are neighbours
         if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
             return False
 

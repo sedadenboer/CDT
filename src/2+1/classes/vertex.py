@@ -36,6 +36,9 @@ class Vertex:
         Args:
             t (Tetrahedron): A (3,1)-tetrahedron that contains this vertex in its base.
         """
+        # Make sure that the vertex is in the base of the tetrahedron
+        assert t.has_vertex(self)
+        assert t.get_vertices().index(self) != 3
         self.tetra = t
 
     def get_tetra(self) -> int:

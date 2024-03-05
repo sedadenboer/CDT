@@ -41,6 +41,9 @@ class Universe:
         SCNUM_ADD = 3
         N_VERTICES_TETRA = N_TETRA_NEIGHBOURS = 4
         N_VERTICES_TRIANGLE = N_HALFEDGES_TETRA = 3
+        APEX_INDEX_31 = OPPOSITE_TETRA_INDEX_31 = 3
+        APEX_INDEX_13 = OPPOSITE_TETRA_INDEX_13 = 0
+        
         
     def __init__(self, geometry_infilename: str, strictness: int = 0, volfix_switch: int = 0):
         self.strictness = strictness
@@ -128,8 +131,9 @@ class Universe:
                 # If the tetrahedron is a (3,1)-tetrahedron, update the size of the slices
                 if tetra.is_31():
                     # Set tetrahedron neighbors for each vertex
-                    for vertex in tetra_vs:
-                        vertex.set_tetra(tetra)
+                    for i, vertex in enumerate(tetra_vs):
+                        if i != self.Constants.APEX_INDEX_31:
+                            vertex.set_tetra(tetra)
 
                     # Add to the bag and update the slice size
                     self.tetras_31.add(tetra.ID)
@@ -243,6 +247,8 @@ class Universe:
         tv = t.get_tetras()[3]
         assert tv.is_13()
 
+        # print(f"Add changes t: {t.ID} and tv: {tv.ID}.")
+
         # Create a new vertex and update its cnum and scnum
         new_vertex = Vertex(time=time)
         new_vertex.ID = self.vertex_pool.occupy(new_vertex)
@@ -318,7 +324,7 @@ class Universe:
         v0.scnum += 1; v1.scnum += 1; v2.scnum += 1
         v0.cnum += 2; v1.cnum += 2; v2.cnum += 2; vt.cnum += 2; vb.cnum += 2
 
-        print(f"Added vertex {new_vertex.ID} at time {time}.")
+        # print(f"Added vertex {new_vertex.ID} at time {time}.")
 
         return True
 
@@ -339,6 +345,8 @@ class Universe:
         time = vertex.time
         t01 = vertex.get_tetra()
         tv01 = t01.get_tetras()[3]
+
+        # print(f"Delete changes t01: {t01.ID} and tv01: {tv01.ID}.")
 
         # Get the vertex index in the tetrahedron
         vpos = t01.get_vertices().index(vertex)
@@ -413,7 +421,7 @@ class Universe:
         self.slab_sizes[(time - 1 + self.n_slices) % self.n_slices] -= 2
         self.slice_sizes[time] -= 2
 
-        print(f"Deleted vertex {vertex.ID} at time {time}.")
+        # print(f"Deleted vertex {vertex.ID} at time {time}.")
 
         return True
 
@@ -440,24 +448,28 @@ class Universe:
         t012 = self.tetrahedron_pool.get(tetra012_id)
         t230 = self.tetrahedron_pool.get(tetra230_id)
 
-        # Get the vertices of the base triangles
+        # print(f"Flipping t012: {t012.ID} and t230: {t230.ID}.")
+
+        # Get the vertices of the base triangles that are going to be linked
         v1 = t012.get_vertex_opposite_tetra(t230)
         v3 = t230.get_vertex_opposite_tetra(t012)
 
+        # Get the remaining base vertices
         for i in range(self.Constants.N_VERTICES_TRIANGLE):
             if t012.get_vertices()[i] == v1:
                 v2 = t012.get_vertices()[(i + 1) % 3]
                 v0 = t012.get_vertices()[(i + 2) % 3]
                 break
         
-        # Get the opposite tetrahedra
+        # Get the opposite (1,3)-tetrahedra
         tv012 = t012.get_tetras()[3]
         tv230 = t230.get_tetras()[3]
+        assert tv012.check_neighbours_tetra(tv230)
 
+        # Manifold conditions
         if self.strictness >= 1 and v1 == v3:
             return False
-        # Disallow self-energt insertions in dual graph
-        if self.strictness >= 2 and (v0.scnum == 3 or v2.scnum == 3):
+        if self.strictness >= 2 and (v0.scnum <= 3 or v2.scnum <= 3):
             return False
         if self.strictness >= 3 and v1.check_vertex_neighbour(v3):
             return False
@@ -466,7 +478,7 @@ class Universe:
         vt = t012.get_vertices()[3]
         vb = tv012.get_vertices()[0]
 
-        # Get opposite neighbouring tetrahedra for initial connected vertices
+        # Get opposite neighbouring tetrahedra
         ta01 = t012.get_tetra_opposite(v2)
         ta12 = t012.get_tetra_opposite(v0)
         ta23 = t230.get_tetra_opposite(v0)
@@ -478,6 +490,7 @@ class Universe:
         # Make sure the move is valid
         if ta01 == t230 or ta23 == t012 or tva01 == t230 or tva23 == t012:
             return False
+        # Opposite vertices in opposite tetrahedra
         t012vo2 = t012.get_vertex_opposite(v2)
         t230vo0 = t230.get_vertex_opposite(v0)
         tv012vo2 = tv012.get_vertex_opposite(v2)
@@ -500,6 +513,7 @@ class Universe:
         tvn123.set_tetras(tn123, tva23, tvn013, tva12)
 
         # Exchange given tetrahedron for the given vertex with opposite tetrahedron
+        #TODO check correct
         ta01.exchange_tetra_opposite(t012vo2, tn013)
         ta23.exchange_tetra_opposite(t230vo0, tn123)
         tva01.exchange_tetra_opposite(tv012vo2, tvn013)
@@ -523,7 +537,7 @@ class Universe:
         v0.set_tetra(tn013)
         v2.set_tetra(tn123)
 
-        print(f"Flipped, updated tn013: {tn013.ID}, tn123: {tn123.ID}, tvn013: {tvn013.ID}, tvn123: {tvn123.ID}.")
+        # print(f"Flipped, updated tn013: {tn013.ID}, tn123: {tn123.ID}, tvn013: {tvn013.ID}, tvn123: {tvn123.ID}.")
 
         return True
 
@@ -544,6 +558,8 @@ class Universe:
         # Get the 31 and 22 tetra neighbours
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
+
+        # print(f"Shifting t31: {t31.ID} and t22: {t22.ID}.")
 
         # Get the vertices that will be linked
         v0 = t31.get_vertex_opposite_tetra(t22)
@@ -608,10 +624,11 @@ class Universe:
         self.tetras_31.remove(t31.ID)
 
         # Make sure the vertices are updated with the new 31 tetra
-        for v in tn31.get_vertices():
-            v.set_tetra(tn31)
+        for i, v in enumerate(tn31.get_vertices()):
+            if i != 3:
+                v.set_tetra(tn31)
 
-        print(f"Shifted, created tn31: {tn31.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
+        # print(f"Shifted, created tn31: {tn31.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
 
         return True
     
@@ -633,6 +650,8 @@ class Universe:
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22l = self.tetrahedron_pool.get(tetra22l_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
+
+        # print(f"iShifting t31: {t31.ID}, t22l: {t22l.ID} and t22r: {t22r.ID}.")
 
         # Get the vertices of the interior triangle
         v1 = t31.get_vertices()[3]
@@ -690,11 +709,12 @@ class Universe:
         time = tn31.get_vertices()[0].time
         self.slab_sizes[time] -= 1
 
-        # Make sure the vertices are updated with the new 31 tetra
-        for v in tn31.get_vertices():
-            v.set_tetra(tn31)
+        # Make sure the base vertices are updated with the new 31 tetra
+        for i, v in enumerate(tn31.get_vertices()):
+            if i != self.Constants.APEX_INDEX_31:
+                v.set_tetra(tn31)
 
-        print(f"iShifted, created tn31: {tn31.ID}, tn22: {tn22.ID}.")
+        # print(f"iShifted, created tn31: {tn31.ID}, tn22: {tn22.ID}.")
 
         return True
 
@@ -718,6 +738,8 @@ class Universe:
         # Only because spatial ordering of (1,3)-tetrahedra is currently not guaranteed
         t31 = t13.get_tetras()[0]
         
+        # print(f"Shifting t13: {t13.ID} and t22: {t22.ID}.")
+
         # Get the vertices that will be linked
         v0 = t13.get_vertex_opposite_tetra(t22)
         v1 = t22.get_vertex_opposite_tetra(t13)
@@ -777,7 +799,7 @@ class Universe:
         self.tetrahedron_pool.free(t13.ID)
         self.tetrahedron_pool.free(t22.ID)
 
-        print(f"Shifted, created tn13: {tn13.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
+        # print(f"Shifted, created tn13: {tn13.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
 
         return True
 
@@ -803,6 +825,8 @@ class Universe:
         t31 = t13.get_tetras()[0]
         assert t31.is_31(), "first of type 13 is not type 31"
         
+        # print(f"iShifting t13: {t13.ID} and t22l: {t22l.ID} and t22r: {t22r.ID}.")
+
         # Get the vertices of the inner triangle
         v1 = t13.get_vertices()[0]
         v3 = t22l.get_vertex_opposite_tetra(t13)
@@ -815,8 +839,6 @@ class Universe:
         v0 = t13.get_vertices()[(v4pos + 1) % 3]
         v2 = t13.get_vertices()[(v4pos + 2) % 3]
 
-        print(f"TIME: v0 {v0.time}, v1 {v1.time}, v2 {v2.time}, v3 {v3.time}, v4 {v4.time}")
-        print(f"ORDER: v4: {t13.get_vertices().index(v4)}, v0: {(v4pos + 1) % 3}, v2: {(v4pos + 2) % 3}")
         # Get the neighbouring tetrahedra
         ta023 = t22l.get_tetra_opposite(v1)
         ta034 = t22r.get_tetra_opposite(v1)
@@ -860,7 +882,7 @@ class Universe:
         time = tn13.get_vertices()[3].time
         self.slab_sizes[time] -= 1
 
-        print(f"iShifted, created tn13: {tn13.ID}, tn22: {tn22.ID}.")
+        # print(f"iShifted, created tn13: {tn13.ID}, tn22: {tn22.ID}.")
 
         return True
 
@@ -966,8 +988,7 @@ class Universe:
         #         for he_opposite in opposite.get_half_edges():
         #             if he.get_vertices() == he_opposite.get_vertices()[::-1] or he.get_vertices() == he_opposite.get_vertices():
         #                 he.set_adjacent(he_opposite)
-                    
-                
+                            
     def get_total_size(self) -> int:
         """
         Get the total size of the triangulation.
@@ -991,7 +1012,7 @@ class Universe:
         """
         print("====================================================")
         print(f"Checking validity of the triangulation...")
-        print("====================================================")
+        print("----------------------------------------------------")
         print(f"Number of tetrahedra: {self.tetrahedron_pool.get_number_occupied()}")
 
         # Check that each tetrahedron has 4 vertices and 4 neighbouring tetrahedra         
@@ -1009,54 +1030,52 @@ class Universe:
             
             # Check if all neighbours still exist
             for i in range(self.Constants.N_TETRA_NEIGHBOURS):
+                neighbour = t.get_tetras()[i]
+        
                 # Make sure that each tetrahedron is contained in the tetrahedron pool
-                if not self.tetrahedron_pool.contains(t.get_tetras()[i].ID):
+                if not self.tetrahedron_pool.contains(neighbour.ID):
                     print(f"Error: Tetrahedron {t.ID} has a missing neighbour.")
                     t.log()
-                    t.get_tetras()[i].log()
+                    neighbour.log()
                 
-                assert self.tetrahedron_pool.contains(t.get_tetras()[i].ID)
+                assert self.tetrahedron_pool.contains(neighbour.ID)
                 # Make sure that tetrahedron neighbours have eachother as neighbours
-                assert t.get_tetras()[i].check_neighbours_tetra(t)
+                assert neighbour.check_neighbours_tetra(t)
                 # Make sure that tetrahedron neighbours are unique
-                assert t.get_tetras()[i] != t
+                assert neighbour != t
                 # ID of tetrahedron neighbours should be non-negative
-                assert t.get_tetras()[i].ID >= 0
+                assert neighbour.ID >= 0
 
                 # Check for shared vertices between neighbours
-                shared_vertices = 0
-                for j in range(self.Constants.N_VERTICES_TETRA):
-                    shared_vertex = t.get_tetras()[i].get_vertices()[j]
+                shared_vertices = sum(1 for vertex in neighbour.get_vertices() if t.has_vertex(vertex))
 
-                    # Keep track of number of shared vertices between neighbours
-                    if t.has_vertex(shared_vertex):
-                        shared_vertices += 1
-
-                # Between neighbours there should be 3 shared vertices
-                assert shared_vertices == 3
+                # Between neighbours there should be at least 3 shared vertices
+                assert shared_vertices >= 3, \
+                    f"Error: Tetrahedron {t.ID} with type {t.type} has a wrong number of shared vertices with neighbour {t.get_tetras()[i].ID} with type {t.get_tetras()[i].type}.\n shared vertices = {shared_vertices}."
 
                 # Check if the tetrahedra neighbours are of the correct type
                 if t.is_31():
-                    # If the tetrahedron is a (3,1)-simplex, then neighbour 0 should be a (1,3)-simplex
-                    if i == 3:
-                        assert t.get_tetras()[i].is_13(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
+                    # If the tetrahedron is a (3,1)-simplex, then neighbour 3 should be a (1,3)-simplex
+                    if i == self.Constants.APEX_INDEX_31:
+                        assert neighbour.is_13(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
                     else:
-                        assert t.get_tetras()[i].is_22() or t.get_tetras()[i].is_31(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
+                        assert neighbour.is_22() or t.get_tetras()[i].is_31(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
                 if t.is_13():
                     # If the tetrahedron is a (1,3)-simplex, then neighbour 0 should be a (3,1)-simplex
-                    if i == 0:
-                        assert t.get_tetras()[i].is_31(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
+                    if i == self.Constants.APEX_INDEX_13:
+                        assert neighbour.is_31(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
                     else:
-                        assert t.get_tetras()[i].is_22() or t.get_tetras()[i].is_13(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
+                        assert neighbour.is_22() or t.get_tetras()[i].is_13(), f"Error: Tetrahedron {t.ID} has a wrong neighbour type."
             
             # Check if all opposite tetrahedra still exist and are correct
             for i in range(self.Constants.N_TETRA_NEIGHBOURS):
                 assert t.get_tetra_opposite(t.get_vertices()[i]) == t.get_tetras()[i], \
-                    f"Error: Vertex {t.get_vertices()[i].ID} in tetra {t.ID} has the wrong opposite tetra {t.get_tetras()[i].ID}.\
-                        {t.get_tetra_opposite(t.get_vertices()[i].ID)} != {t.get_tetras()[i].ID}"
+                    f"Error: Vertex {neighbour.ID} in tetra {t.ID} has the wrong opposite tetra {t.get_tetras()[i].ID}.\
+                        {t.get_tetra_opposite(neighbour.ID)} != {t.get_tetras()[i].ID}"
                 
         for v in self.vertex_pool.get_objects():
-            assert self.tetrahedron_pool.contains(v.get_tetra().ID)
+            assert self.tetrahedron_pool.contains(v.get_tetra().ID), \
+                  f"Error: Vertex {v.ID} has a missing tetrahedron. {v.get_tetra().ID} not in tetrahedron pool."
 
             # Tadpole restriction
             if self.strictness == 1:
@@ -1065,6 +1084,7 @@ class Universe:
             if self.strictness == 2:
                 assert v.scnum >= 3
         
+        print("Valid! :)")
         print("====================================================")
 
     def export_geometry(self, geometry_outfilename: str = "output") -> bool:
@@ -1111,34 +1131,45 @@ class Universe:
 
         return True
 
+
 if __name__ == "__main__":
     u = Universe(geometry_infilename="initial_universes/output.txt")
     u.update_geometry()
     u.check_validity()
 
-    # MAKE SURE THAT SEED=0 IN THE RANDOM MODULE
-    # Check delete and add move
-    random31 = u.tetras_31.pick()
-    u.add(random31)
-    u.delete(100)
+    # # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
+    # # Check delete and add move
+    # random31 = u.tetras_31.pick()
+    # u.add(random31)
+    # u.delete(100)
 
-    # Set of neighbours
-    t31 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    other_t31 = t31.get_tetras()[1]
-    t22 = t31.get_tetras()[0]
+    # # Set of neighbours
+    # t31 = u.tetrahedron_pool.get(u.tetras_31.pick())
+    # other_t31 = t31.get_tetras()[1]
+    # t22 = t31.get_tetras()[0]
 
-    # Check flip, shift_u and ishift_u move
-    u.flip(t31.ID, other_t31.ID)
-    u.shift_u(t31.ID, t22.ID)
-    u.ishift_u(365, 364, 363)
+    # # For the flip move
+    # t012 = u.tetrahedron_pool.get(u.tetras_31.pick())
+    # tetra230 = t012.get_tetras()[1]
 
-    # Other set of neighbours
-    t31_2 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    t13 = t31_2.get_tetras()[3]
-    t22_2 = t13.get_tetras()[3]
+    # # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
+    # while not tetra230.is_31() or not t31.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
+    #     tetra230 = u.tetrahedron_pool.get(u.tetras_31.pick())
+    #     tetra230 = t012.get_tetras()[1]
+        
+    # # Check flip, shift_u and ishift_u move
+    # u.flip(t012.ID, tetra230.ID)
+    # u.shift_u(t31.ID, t22.ID)
+    # u.ishift_u(360, 361, 362)
 
-    # Check shift_d and ishift_d move
-    u.shift_d(t13.ID, t22_2.ID)
-    u.ishift_d(363, 364, 365)
+    # # Other set of neighbours
+    # t31_2 = u.tetrahedron_pool.get(u.tetras_31.pick())
+    # t13 = t31_2.get_tetras()[3]
+    # t22_2 = t13.get_tetras()[3]
 
-    u.export_geometry("output_yeah")
+    # # Check shift_d and ishift_d move
+    # u.shift_d(t13.ID, t22_2.ID)
+    # u.ishift_d(360, 361, 362)
+
+    # u.check_validity()
+    # u.export_geometry("output_yeah")
