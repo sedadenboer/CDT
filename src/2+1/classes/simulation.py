@@ -39,7 +39,7 @@ class Simulation:
         self.measuring = False
         self.observables_3d = []
         self.observables_2d = []
-        self.move_freqs = (0, 0, 0)
+        self.move_freqs = (1, 1, 1)
         self.k3_values = []
         self.total_vertices = []
         self.total_tetras = []
@@ -188,7 +188,7 @@ class Simulation:
         """
         cum_freqs = np.cumsum(self.move_freqs)
         freq_total = sum(self.move_freqs)
-       
+
         # Generate a random number to select a move pair
         move = self.rng.randint(0, freq_total)
 
@@ -332,7 +332,9 @@ class Simulation:
         vertex = self.universe.vertex_pool.get(vertex_label)
 
         # Check if the vertex is actually deletable
-        if vertex.cnum != 6 or vertex.scnum != 3:
+        if vertex.cnum != 6:
+            return False
+        if vertex.scnum != 3:
             return False
         
         # Perform the move
@@ -360,7 +362,9 @@ class Simulation:
         assert tetra012.check_neighbours_tetra(tetra230), "SIM: Tetra012 and tetra230 are not neighbours"
 
         # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
-        if not tetra230.is_31() or not tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
+        if not tetra230.is_31():
+            return False
+        if not tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
             return False
         
         # Try the move
@@ -607,45 +611,28 @@ class Simulation:
         self.k0 = k0
         self.k3 = k3
         self.rng.seed(seed)
-
-        add_c = 0
-        del_c = 0
-        flip_c = 0
-
+        
+        test = {1: 0, -1: 0, 2: 0, -2: 0, 3: 0, -3: 0, 4: 0, -4: 0, 5: 0, -5: 0}
         for i in range(N):
-            print(f"\ni={i}")
-            # print("move attempted", self.attempt_move())
-            result = self.attempt_simple()
-            print(f"move attempted: {result}\n")
+            print(f"Trial: {i} \n")
+            move_num = self.attempt_move()
+            test[move_num] += 1
+            print(f"Move: {move_num} \n")
+            print(f"Test: {test} \n")
+            self.universe.update_geometry()
             self.universe.check_validity()
-            if result == 1:
-                add_c += 1
-            elif result == 2:
-                del_c += 1
-            elif result == 3:
-                flip_c += 1
-
-        print(f"add: {add_c} del: {del_c} flip: {flip_c}")
-
-
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/test.dat', strictness=3, volfix_switch=0)
     # Start simulation
     simulation = Simulation(universe)
-    # simulation.move_add()
-    # simulation.move_delete()
-    # simulation.move_flip()
-    # simulation.move_shift_u()
-    # simulation.move_shift_d()
-    # simulation.move_ishift_u()
-    # simulation.move_ishift_d()
 
     # simulation.start(
     #     k0=1, k3=0, sweeps=10, thermal_sweeps=100, k_steps=100,
     #     target_volume=500, target2_volume=0, seed=0, outfile="output_test.txt",
-    #     v1=0, v2=0, v3=0
+    #     v1=1, v2=1, v3=1
     # )
 
     seed = random.randint(0, 1000000)
-    simulation.trial(k0=1, k3=0, seed=seed, N=1000)
+    # seed = 0
+    simulation.trial(k0=1, k3=1, seed=seed, N=10000)

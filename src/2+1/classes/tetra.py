@@ -299,5 +299,5 @@ class Tetrahedron:
         print(f"Tetrahedron {self.ID} @ {self.time} with type {self.to_string(self.type)}")
         print(f"Vertices: {[v.ID for v in self.vs]}, time: {[v.time for v in self.vs]}")
         print(f"Neighbours: {[t.ID for t in self.tnbr]}, time: {[t.time for t in self.tnbr]}")
-        print(f"Halfedges: {[h.ID for h in self.hes]}, time: {[h.time for h in self.hes]}")
+        print(f"Halfedges: {[h.ID for h in self.hes]}")
         print()
