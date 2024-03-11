@@ -29,7 +29,6 @@ class Pool:
         self.p[-1] = None
         self.used_indices: Set[int] = set()
         self.first: Optional[int] = 0
-        self.size = len(self.used_indices)
     
     def occupy(self, obj: Union[Triangle, Vertex, Tetrahedron, HalfEdge]) -> int:
         """
@@ -95,7 +94,6 @@ class Pool:
         self.p[-1] = None
         self.used_indices.clear()
         self.first = 0
-        self.size = 0
 
     def get(self, index: int) -> Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]:
         """
@@ -116,9 +114,9 @@ class Pool:
         Returns:
             int: Index of object.
         """
-        if self.size == 0:
+        if self.get_number_occupied() == 0:
             raise Exception("Pool is empty.")
-        elif self.size > 0:
+        else:
             return random.choice(list(self.used_indices))
         
         # Pool is empty

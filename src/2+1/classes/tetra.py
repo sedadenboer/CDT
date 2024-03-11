@@ -231,7 +231,6 @@ class Tetrahedron:
             
         assert False, f"No tetrahedron opposite to vertex {v.ID} in tetrahedron {self.ID}"
 
-
     def get_vertex_opposite(self, v: Vertex) -> Vertex:
         """
         Returns the vertex opposite to the given vertex in the opposite tetrahedron.
@@ -283,15 +282,22 @@ class Tetrahedron:
             if v_i == v:
                 self.tnbr[i] = tn
     
+    def remove_tetra_neighbour(self, t: Tetrahedron) -> None:
+        """
+        Removes the given tetrahedron from the tetrahedron neighbours.
+
+        Args:
+            t (Tetrahedron): The tetrahedron to remove.
+        """
+        if t in self.tnbr:
+            self.tnbr.remove(t)
+
     def log(self):
         """
         Prints information about the tetrahedron.
         """
         print(f"Tetrahedron {self.ID} @ {self.time} with type {self.to_string(self.type)}")
-        for i, v in enumerate(self.vs):
-            print(f"Vertex {i} @ {v.time}")
-        for i, t in enumerate(self.tnbr):
-            print(f"Tetra {i} @ {t.time}")
-        for i, h in enumerate(self.hes):
-            print(f"Halfedge {i} @ {h.time}")
+        print(f"Vertices: {[v.ID for v in self.vs]}, time: {[v.time for v in self.vs]}")
+        print(f"Neighbours: {[t.ID for t in self.tnbr]}, time: {[t.time for t in self.tnbr]}")
+        print(f"Halfedges: {[h.ID for h in self.hes]}, time: {[h.time for h in self.hes]}")
         print()

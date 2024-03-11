@@ -43,7 +43,7 @@ class Simulation:
         self.k3_values = []
         self.total_vertices = []
         self.total_tetras = []
-    
+
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
                     target_volume: int, target2_volume: int,
@@ -101,9 +101,9 @@ class Simulation:
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
-            # Export the geometry every 10% of the thermal sweeps
-            if i % (thermal_sweeps / 10) == 0:
-                self.universe.export_geometry(outfile)
+            # # Export the geometry every 10% of the thermal sweeps
+            # if i % (thermal_sweeps / 10) == 0:
+            #     self.universe.export_geometry(outfile)
             
             # # Update geometry and measure observables related to 3D structures
             # self.prepare()
@@ -190,7 +190,7 @@ class Simulation:
         freq_total = sum(self.move_freqs)
        
         # Generate a random number to select a move pair
-        move = self.rng.randint(0, 2)
+        move = self.rng.randint(0, freq_total)
 
         if move < cum_freqs[0]:
             # Add or delete move
@@ -326,7 +326,7 @@ class Simulation:
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
             return False
-     
+
         # Get a random vertex
         vertex_label = self.universe.vertex_pool.pick()
         vertex = self.universe.vertex_pool.get(vertex_label)
@@ -337,6 +337,8 @@ class Simulation:
         
         # Perform the move
         self.universe.delete(vertex_label)
+
+        # print(f"Deleted vertex: {vertex_label} \n")
 
         return True
     
@@ -354,6 +356,8 @@ class Simulation:
         # Get random neighbour of tetra012
         random_neighbour = self.rng.randint(0, 2)
         tetra230 = tetra012.get_tetras()[random_neighbour]
+
+        assert tetra012.check_neighbours_tetra(tetra230), "SIM: Tetra012 and tetra230 are not neighbours"
 
         # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
         if not tetra230.is_31() or not tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
@@ -390,6 +394,8 @@ class Simulation:
         random_neighbour = self.rng.randint(0, 2)
         tetra22 = tetra31.get_tetras()[random_neighbour]
         
+        assert tetra22.check_neighbours_tetra(tetra31), "SIM: Tetra22 and tetra31 are not neighbours"
+
         # Check if the tetrahedron is actually of type (2,2)
         if not tetra22.is_22():
             return False
@@ -426,8 +432,10 @@ class Simulation:
         tetra22 = tetra13.get_tetras()[random_neighbour]
         
         # Check if the tetrahedron is actually of type (2,2)
-        if not tetra22.is_22():
+        if not tetra22.is_22() or not tetra13.is_13():
             return False
+        
+        assert tetra22.check_neighbours_tetra(tetra13), "SIM: Tetra22 and tetra13 are not neighbours"
         
         # Try the move
         return self.universe.shift_d(tetra13.ID, tetra22.ID)
@@ -461,7 +469,10 @@ class Simulation:
         tetra22l = tetra31.get_tetras()[random_neighbour]
         tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
 
-        # Check if the tetrahedron is actually of type (2,2) and if the (2,2) tetras are neighbours
+        assert tetra31.check_neighbours_tetra(tetra22l) and tetra31.check_neighbours_tetra(tetra22r), \
+            "SIM: Tetra31 and tetra22l or tetra22r are not neighbours"
+
+        # Make sure the tetra is actually of type (2,2) and that the (2,2) tetras are neighbours
         if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
             return False
 
@@ -474,6 +485,8 @@ class Simulation:
         # If the number of shared vertices is not 3, the move is not valid
         if shared_vertices != 3:
             return False
+        
+        print(f"ishift_u: tetra31: {tetra31_label} tetra22l: {tetra22l.ID} tetra22r: {tetra22r.ID}")
         
         # Try the move
         return self.universe.ishift_u(tetra31_label, tetra22l.ID, tetra22r.ID)
@@ -504,11 +517,13 @@ class Simulation:
 
         # Get random (2,2) neighbours of tetra13
         random_neighbour = self.rng.randint(0, 2)
-        # Actually the nieghbours are ordered
         tetra22l = tetra13.get_tetras()[1 + random_neighbour]
         tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
 
-        # Check if the tetrahedron is actually of type (2,2) and if the neighbours are correct
+        assert tetra13.check_neighbours_tetra(tetra22l) and tetra13.check_neighbours_tetra(tetra22r), \
+            "SIM: Tetra13 and tetra22l or tetra22r are not neighbours"
+
+        # Make sure the tetra is actually of type (2,2) and that the (2,2) tetras are neighbours
         if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
             return False
         
@@ -521,7 +536,7 @@ class Simulation:
         # If the number of shared vertices is not 3, the move is not valid
         if shared_vertices != 3:
             return False
-        
+     
         # Try the move
         return self.universe.ishift_d(tetra13.ID, tetra22l.ID, tetra22r.ID)
 
@@ -574,12 +589,63 @@ class Simulation:
         # Append the k3 value to the list
         self.k3_values.append(self.k3)
 
+    def attempt_simple(self):
+        # Generate a random number to select a move pair
+        move = self.rng.randint(0, 1)
+
+        if move == 0:
+            # Add or delete move
+            if self.rng.randint(0, 1) == 0:
+                return 1 if self.move_add() else -1
+            else:
+                return 2 if self.move_delete() else -2
+        else:
+            # Flip move
+            return 3 if self.move_flip() else -3
+        
+    def trial(self, k0, k3, seed, N):
+        self.k0 = k0
+        self.k3 = k3
+        self.rng.seed(seed)
+
+        add_c = 0
+        del_c = 0
+        flip_c = 0
+
+        for i in range(N):
+            print(f"\ni={i}")
+            # print("move attempted", self.attempt_move())
+            result = self.attempt_simple()
+            print(f"move attempted: {result}\n")
+            self.universe.check_validity()
+            if result == 1:
+                add_c += 1
+            elif result == 2:
+                del_c += 1
+            elif result == 3:
+                flip_c += 1
+
+        print(f"add: {add_c} del: {del_c} flip: {flip_c}")
+
+
+
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='initial_universes/output.txt', strictness=0, volfix_switch=0)
+    universe = Universe(geometry_infilename='initial_universes/test.dat', strictness=3, volfix_switch=0)
     # Start simulation
     simulation = Simulation(universe)
-    simulation.start(
-        k0=1, k3=0, sweeps=10, thermal_sweeps=100, k_steps=100,
-        target_volume=500, target2_volume=0, seed=0, outfile="output_test.txt",
-        v1=0, v2=0, v3=0
-    )
+    # simulation.move_add()
+    # simulation.move_delete()
+    # simulation.move_flip()
+    # simulation.move_shift_u()
+    # simulation.move_shift_d()
+    # simulation.move_ishift_u()
+    # simulation.move_ishift_d()
+
+    # simulation.start(
+    #     k0=1, k3=0, sweeps=10, thermal_sweeps=100, k_steps=100,
+    #     target_volume=500, target2_volume=0, seed=0, outfile="output_test.txt",
+    #     v1=0, v2=0, v3=0
+    # )
+
+    seed = random.randint(0, 1000000)
+    simulation.trial(k0=1, k3=0, seed=seed, N=1000)
