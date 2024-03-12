@@ -13,7 +13,6 @@ from universe import Universe
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from universe import Universe
-    from observable import Observable
 
 
 class Simulation:
@@ -47,7 +46,7 @@ class Simulation:
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
                     target_volume: int, target2_volume: int,
-                    seed: int, outfile: str,
+                    seed: int, outfile: str, validity_check: bool,
                     v1: int, v2: int, v3: int):
         """
         Starts the MCMC CDT 2+1 simulation.
@@ -62,6 +61,7 @@ class Simulation:
             target2_volume (int): The target 2D volume of the simulation.
             seed (int): The seed for the random number generator.
             outfile (str): The output file for the simulation.
+            validity_check (bool): True if the validity of the universe should be checked, False otherwise.
             v1 (int): The first move frequency.
             v2 (int): The second move frequency.
             v3 (int): The third move frequency.
@@ -84,7 +84,7 @@ class Simulation:
         print("========================================\n")
         print("THERMAL SWEEPS\n")
         print("----------------------------------------\n")
-        print(f"k0 = {k0}, k3 = {k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
+        print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
         print("----------------------------------------\n")
 
         for i in range(1, thermal_sweeps + 1):
@@ -92,7 +92,7 @@ class Simulation:
             total_2v = sum(self.universe.slice_sizes)
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            print(f"Thermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k3: {self.k3} \n")
+            print(f"\nThermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k3: {self.k3}")
 
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps * 1000)
@@ -101,20 +101,23 @@ class Simulation:
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
-            # # Export the geometry every 10% of the thermal sweeps
-            # if i % (thermal_sweeps / 10) == 0:
-            #     self.universe.export_geometry(outfile)
+            # Export the geometry every 10% of the thermal sweeps
+            if i % (thermal_sweeps / 10) == 0:
+                self.universe.export_geometry(outfile)
             
-            # # Update geometry and measure observables related to 3D structures
-            # self.prepare()
-            # for o in self.observables_3d:
-            #     o.measure(self.universe)
+            # Update geometry and measure observables related to 3D structures
+            self.prepare()
+            for o in self.observables_3d:
+                o.measure(self.universe)
+
+        if validity_check:
+            self.universe.check_validity()
 
         # Main sweeps
         print("========================================\n")
         print("MAIN SWEEPS\n")
         print("----------------------------------------\n")
-        print(f"k0 = {k0}, k3 = {k3}, epsilon = {self.epsilon}\n")
+        print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}\n")
         print("----------------------------------------\n")
 
         for i in range(1, sweeps + 1):
@@ -123,7 +126,7 @@ class Simulation:
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
             avg_2v = total_2v / self.universe.n_slices
-            print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target_2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
+            print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
 
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps * 1000)
@@ -152,10 +155,10 @@ class Simulation:
                         compare = self.universe.tetras31.get_number_occupied() \
                             if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
 
-                # # Update geometry and measure observables related to 3D structures
-                # self.prepare()
-                # for o in self.observables_3d:
-                #     o.measure(self.universe)
+                # Update geometry and measure observables related to 3D structures
+                self.prepare()
+                for o in self.observables_3d:
+                    o.measure(self.universe)
             
             # Check if there's a 2D target volume specified for the timeslices
             if target2_volume > 0:
@@ -172,10 +175,13 @@ class Simulation:
                              hit = True
                              break
                 
-                # # Update geometry and measure observables related to 2D structures
-                # self.prepare()
-                # for o in self.observables_2d:
-                #     o.measure(self.universe)
+                # Update geometry and measure observables related to 2D structures
+                self.prepare()
+                for o in self.observables_2d:
+                    o.measure(self.universe)
+        
+        if validity_check:
+            self.universe.check_validity()
 
     def attempt_move(self) -> int:
         """
@@ -281,11 +287,12 @@ class Simulation:
         acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
 
         # If the target volume is specified, adjust AP according to the volume switch
-        if self.target_volume > 0:
-            if vol_switch == 0:
+        if vol_switch == 0:
+            if self.target_volume > 0:
                 acceptance_probability *= np.exp(
                     4 * self.epsilon * (self.target_volume - n31 - 1))
-            else:
+        else:
+            if self.target_volume > 0:
                 acceptance_probability *= np.exp(
                     8 * self.epsilon * (self.target_volume - n3 - 2))
 
@@ -311,15 +318,15 @@ class Simulation:
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         n0 = self.universe.vertex_pool.get_number_occupied()
         vol_switch = self.universe.volfix_switch
-        acceptance_probability = ((n0 + 1) / n31) * np.exp(
-            -self.k0 + 4 * self.k3)
+        acceptance_probability = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
 
         # If the target volume is specified, adjust AP according to the volume switch
-        if self.target_volume > 0:
-            if vol_switch == 0:
+        if vol_switch == 0:
+            if self.target_volume > 0:
                 acceptance_probability *= np.exp(
                     -4 * self.epsilon * (self.target_volume - n31 - 1))
-            else:
+        else:
+            if self.target_volume > 0:
                 acceptance_probability *= np.exp(
                     -8 * self.epsilon * (self.target_volume - n3 - 2))
 
@@ -357,12 +364,14 @@ class Simulation:
         random_neighbour = self.rng.randint(0, 2)
         tetra230 = tetra012.get_tetras()[random_neighbour]
 
-        assert tetra012.check_neighbours_tetra(tetra230), "SIM: Tetra012 and tetra230 are not neighbours"
-
         # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
         if not tetra230.is_31():
             return False
         if not tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
+            return False
+        if not tetra012.get_tetras()[3].is_13():
+            return False
+        if not tetra230.get_tetras()[3].is_13():
             return False
         
         # Try the move
@@ -380,9 +389,9 @@ class Simulation:
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.universe.volfix_switch
 
-        if vol_switch == 1 and self.target_volume > 0:
-            acceptance_probability *= np.exp(
-                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+        if vol_switch == 1:
+            if self.target_volume > 0:
+                acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
 
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
@@ -396,8 +405,6 @@ class Simulation:
         random_neighbour = self.rng.randint(0, 2)
         tetra22 = tetra31.get_tetras()[random_neighbour]
         
-        assert tetra22.check_neighbours_tetra(tetra31), "SIM: Tetra22 and tetra31 are not neighbours"
-
         # Check if the tetrahedron is actually of type (2,2)
         if not tetra22.is_22():
             return False
@@ -417,9 +424,9 @@ class Simulation:
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.universe.volfix_switch
 
-        if vol_switch == 1 and self.target_volume > 0:
-            acceptance_probability *= np.exp(
-                self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+        if vol_switch == 1:
+            if self.target_volume > 0:
+                acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
 
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
@@ -437,8 +444,6 @@ class Simulation:
         if not tetra22.is_22() or not tetra13.is_13():
             return False
         
-        assert tetra22.check_neighbours_tetra(tetra13), "SIM: Tetra22 and tetra13 are not neighbours"
-        
         # Try the move
         return self.universe.shift_d(tetra13.ID, tetra22.ID)
 
@@ -454,9 +459,9 @@ class Simulation:
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.universe.volfix_switch
 
-        if vol_switch == 1 and self.target_volume > 0:
-            acceptance_probability *= np.exp(
-                -self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+        if vol_switch == 1:
+            if self.target_volume > 0:
+                acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
 
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
@@ -471,11 +476,12 @@ class Simulation:
         tetra22l = tetra31.get_tetras()[random_neighbour]
         tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
 
-        assert tetra31.check_neighbours_tetra(tetra22l) and tetra31.check_neighbours_tetra(tetra22r), \
-            "SIM: Tetra31 and tetra22l or tetra22r are not neighbours"
-
         # Make sure the tetra is actually of type (2,2) and that the (2,2) tetras are neighbours
-        if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
+        if not tetra22l.is_22():
+            return False
+        if not tetra22r.is_22():
+            return False
+        if not tetra22l.check_neighbours_tetra(tetra22r):
             return False
 
         # Count the number of shared vertices between tetra22l and tetra22r
@@ -503,9 +509,9 @@ class Simulation:
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.universe.volfix_switch
 
-        if vol_switch == 1 and self.target_volume > 0:
-            acceptance_probability *= np.exp(
-                -self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+        if vol_switch == 1:
+            if self.target_volume > 0:
+                acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
             
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
@@ -513,18 +519,20 @@ class Simulation:
         
         # Pick a random (1,3)-tetrahedron
         tetra31_label = self.universe.tetras_31.pick()
-        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
+        tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
+        tetra13 = tetra31.get_tetras()[3]
 
         # Get random (2,2) neighbours of tetra13
         random_neighbour = self.rng.randint(0, 2)
         tetra22l = tetra13.get_tetras()[1 + random_neighbour]
         tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
 
-        assert tetra13.check_neighbours_tetra(tetra22l) and tetra13.check_neighbours_tetra(tetra22r), \
-            "SIM: Tetra13 and tetra22l or tetra22r are not neighbours"
-
         # Make sure the tetra is actually of type (2,2) and that the (2,2) tetras are neighbours
-        if not tetra22l.is_22() or not tetra22r.is_22() or not tetra22l.check_neighbours_tetra(tetra22r):
+        if not tetra22l.is_22():
+            return False
+        if not tetra22r.is_22():
+            return False
+        if not tetra22l.check_neighbours_tetra(tetra22r):
             return False
         
         # Count the number of shared vertices between tetra22l and tetra22r
@@ -620,16 +628,24 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='initial_universes/output.txt', strictness=3, volfix_switch=0)
+    universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3, volfix_switch=0)
     # Start simulation
     simulation = Simulation(universe)
 
     simulation.start(
-        k0=1, k3=0, sweeps=1, thermal_sweeps=100, k_steps=500,
-        target_volume=50, target2_volume=0, seed=0, outfile="output_test.txt",
+        k0=5, k3=1.703, sweeps=1000, thermal_sweeps=1000, k_steps=1000,
+        target_volume=3000, target2_volume=1000,
+        seed=1, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
 
-    # seed = random.randint(0, 1000000)
-    # # seed = 0
-    # simulation.trial(k0=1, k3=1, seed=seed, N=10000)
+    # simulation.start(
+    #     k0=5, k3=1.703, sweeps=1, thermal_sweeps=10, k_steps=100,
+    #     target_volume=0, target2_volume=0,
+    #     seed=1, outfile="test_run/output", validity_check=True,
+    #     v1=1, v2=1, v3=1
+    # )
+
+    # # seed = random.randint(0, 1000000)
+    # seed = 1
+    # simulation.trial(k0=5, k3=1.7, seed=seed, N=100)
