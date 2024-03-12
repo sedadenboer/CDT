@@ -29,7 +29,6 @@ class Universe:
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
     """
-
     class Capacity:
         VERTEX = 1000000
         HALFEDGE = 2 * VERTEX

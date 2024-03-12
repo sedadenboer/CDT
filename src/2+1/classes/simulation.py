@@ -13,7 +13,6 @@ from universe import Universe
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from universe import Universe
-    from observable import Observable
 
 
 class Simulation:
