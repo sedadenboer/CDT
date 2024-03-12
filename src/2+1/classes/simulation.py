@@ -340,8 +340,6 @@ class Simulation:
         # Perform the move
         self.universe.delete(vertex_label)
 
-        # print(f"Deleted vertex: {vertex_label} \n")
-
         return True
     
     def move_flip(self) -> bool:
@@ -489,9 +487,7 @@ class Simulation:
         # If the number of shared vertices is not 3, the move is not valid
         if shared_vertices != 3:
             return False
-        
-        print(f"ishift_u: tetra31: {tetra31_label} tetra22l: {tetra22l.ID} tetra22r: {tetra22r.ID}")
-        
+
         # Try the move
         return self.universe.ishift_u(tetra31_label, tetra22l.ID, tetra22r.ID)
 
@@ -622,17 +618,18 @@ class Simulation:
             self.universe.update_geometry()
             self.universe.check_validity()
 
+
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='initial_universes/test.dat', strictness=3, volfix_switch=0)
+    universe = Universe(geometry_infilename='initial_universes/output.txt', strictness=3, volfix_switch=0)
     # Start simulation
     simulation = Simulation(universe)
 
-    # simulation.start(
-    #     k0=1, k3=0, sweeps=10, thermal_sweeps=100, k_steps=100,
-    #     target_volume=500, target2_volume=0, seed=0, outfile="output_test.txt",
-    #     v1=1, v2=1, v3=1
-    # )
+    simulation.start(
+        k0=1, k3=0, sweeps=1, thermal_sweeps=100, k_steps=500,
+        target_volume=50, target2_volume=0, seed=0, outfile="output_test.txt",
+        v1=1, v2=1, v3=1
+    )
 
-    seed = random.randint(0, 1000000)
-    # seed = 0
-    simulation.trial(k0=1, k3=1, seed=seed, N=10000)
+    # seed = random.randint(0, 1000000)
+    # # seed = 0
+    # simulation.trial(k0=1, k3=1, seed=seed, N=10000)
