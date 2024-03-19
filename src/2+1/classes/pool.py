@@ -29,6 +29,7 @@ class Pool:
         self.p[-1] = None
         self.used_indices: Set[int] = set()
         self.first: Optional[int] = 0
+        self.size = 0
     
     def occupy(self, obj: Union[Triangle, Vertex, Tetrahedron, HalfEdge]) -> int:
         """
@@ -50,6 +51,7 @@ class Pool:
 
         # Add index to set of used indices
         self.used_indices.add(index)
+        self.size += 1
 
         # Update first free object
         self.first = self.p[index]
@@ -79,6 +81,7 @@ class Pool:
 
         # Remove index from set of used indices
         self.used_indices.remove(index)
+        self.size -= 1
 
         # Update first free object
         self.p[index] = self.first
@@ -94,6 +97,7 @@ class Pool:
         self.p[-1] = None
         self.used_indices.clear()
         self.first = 0
+        self.size = 0
 
     def get(self, index: int) -> Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]:
         """

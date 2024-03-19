@@ -8,9 +8,11 @@
 # related to the actual Monte Carlo simulation.
 
 import random
+import copy
 import numpy as np
+import time
 from universe import Universe
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple
 if TYPE_CHECKING:
     from universe import Universe
 
@@ -31,10 +33,11 @@ class Simulation:
         self.universe = universe 
         self.k0 = 0
         self.k3 = 0
+        self.volfix_switch = 0
         self.target_volume = 0
         self.target2_volume = 0
         self.rng = random.Random(0)
-        self.epsilon = 0.00004
+        self.epsilon = 0.001
         self.measuring = False
         self.observables_3d = []
         self.observables_2d = []
@@ -45,7 +48,7 @@ class Simulation:
 
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
-                    target_volume: int, target2_volume: int,
+                    volfix_switch: int, target_volume: int, target2_volume: int,
                     seed: int, outfile: str, validity_check: bool,
                     v1: int, v2: int, v3: int):
         """
@@ -57,6 +60,7 @@ class Simulation:
             sweeps (int): The number of sweeps to perform.
             thermal_sweeps (int): The number of thermal sweeps to perform.
             k_steps (int): The number of steps to perform in each sweep.
+            volfix_switch (int): The volume fix switch. 0 for (3,1)-tetrahedra, 1 for all tetrahedra.
             target_volume (int): The target volume of the simulation.
             target2_volume (int): The target 2D volume of the simulation.
             seed (int): The seed for the random number generator.
@@ -69,6 +73,7 @@ class Simulation:
         self.move_freqs = (v1, v2, v3)
         self.k0 = k0
         self.k3 = k3
+        self.volfix_switch = volfix_switch
         self.target_volume = target_volume
         self.target2_volume = target2_volume
         self.rng.seed(seed)
@@ -95,20 +100,20 @@ class Simulation:
             print(f"\nThermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k3: {self.k3}")
 
             # Perform sweeps and tune the k3 parameter
-            self.perform_sweep(k_steps * 1000)
+            self.perform_sweep(k_steps)
             self.tune()
 
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
-            # Export the geometry every 10% of the thermal sweeps
-            if i % (thermal_sweeps / 10) == 0:
-                self.universe.export_geometry(outfile)
+            # # Export the geometry every 10% of the thermal sweeps
+            # if i % (thermal_sweeps / 10) == 0:
+            #     self.universe.export_geometry(outfile + f"_thermal_{i}")
             
             # Update geometry and measure observables related to 3D structures
             self.prepare()
-            for o in self.observables_3d:
-                o.measure(self.universe)
+            # for o in self.observables_3d:
+            #     o.measure(self.universe)
 
         if validity_check:
             self.universe.check_validity()
@@ -129,19 +134,19 @@ class Simulation:
             print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
 
             # Perform sweeps and tune the k3 parameter
-            self.perform_sweep(k_steps * 1000)
+            self.perform_sweep(k_steps)
 
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
             # Export the geometry every 10% of the main sweeps
             if i % (sweeps / 10) == 0:
-                self.universe.export_geometry(outfile)
+                self.universe.export_geometry(outfile + f"_main_{i}")
             
             # Check if there are any 3D observables to be measured
             if len(self.observables_3d) > 0: 
                 # Remove if volume should fluctuate during measurements
-                vol_switch = self.universe.volfix_switch
+                vol_switch = self.volfix_switch
 
                 # Ensure that the universe is at the target volume (if specified)
                 if target_volume > 0:
@@ -152,13 +157,12 @@ class Simulation:
                     while compare != target_volume:
                         self.attempt_move()
                         # Update the compare variable based on the volume switch
-                        compare = self.universe.tetras31.get_number_occupied() \
-                            if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
+                        compare = self.universe.tetras31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
 
                 # Update geometry and measure observables related to 3D structures
                 self.prepare()
-                for o in self.observables_3d:
-                    o.measure(self.universe)
+                # for o in self.observables_3d:
+                #     o.measure(self.universe)
             
             # Check if there's a 2D target volume specified for the timeslices
             if target2_volume > 0:
@@ -177,11 +181,14 @@ class Simulation:
                 
                 # Update geometry and measure observables related to 2D structures
                 self.prepare()
-                for o in self.observables_2d:
-                    o.measure(self.universe)
+                # for o in self.observables_2d:
+                #     o.measure(self.universe)
         
         if validity_check:
             self.universe.check_validity()
+
+        # Export the final geometry
+        self.universe.export_geometry(outfile + "_final")
 
     def attempt_move(self) -> int:
         """
@@ -222,7 +229,7 @@ class Simulation:
                 else:
                     return 5 if self.move_ishift_d() else -5
                 
-    def perform_sweep(self, n: int) -> list[int]:
+    def perform_sweep(self, n: int) -> Tuple[List[int], List[int]]:
         """
         Perform a sweep of the simulation.
 
@@ -230,27 +237,62 @@ class Simulation:
             n (int): The number of moves to perform.
 
         Returns:
-            list[int]: The number of moves performed for each move type.
+            List[int]: The number of moves performed for each move type.
         """
-        moves = [0, 0, 0, 0, 0, 0]
-        failed_moves = [0, 0, 0, 0, 0, 0]
-
+        gathered_counts = []
+        gathered_failed_counts = []
+        add_moves = 0
+        delete_moves = 0
+        flip_moves = 0
+        shift_moves = 0
+        inverse_shift_moves = 0
+        failed_add_moves = 0
+        failed_delete_moves = 0
+        failed_flip_moves = 0
+        failed_shift_moves = 0
+        failed_inverse_shift_moves = 0
+        
         # Perform n moves
         for _ in range(n):
             move_num = self.attempt_move()
             move = abs(move_num)
 
             # Update the move counters
-            moves[move] += 1
-            if move_num < 0:
-                failed_moves[move] += 1
+            if move_num > 0:
+                if move == 1:
+                    add_moves += 1
+                elif move == 2:
+                    delete_moves += 1
+                elif move == 3:
+                    flip_moves += 1
+                elif move == 4:
+                    shift_moves += 1
+                elif move == 5:
+                    inverse_shift_moves += 1
+            else:
+                if move == 1:
+                    failed_add_moves += 1
+                elif move == 2:
+                    failed_delete_moves += 1
+                elif move == 3:
+                    failed_flip_moves += 1
+                elif move == 4:
+                    failed_shift_moves += 1
+                elif move == 5:
+                    failed_inverse_shift_moves += 1
 
-        # Print the succes rate for each move
-        print(f"Add: {moves[1]} \t Delete: {moves[2]} \t Flip: {moves[3]} \t Shift: {moves[4]} \t Inverse Shift: {moves[5]}")
-        print(f"Failed Add: {failed_moves[1]} \t Failed Delete: {failed_moves[2]} \t Failed Flip: {failed_moves[3]} \t Failed Shift: {failed_moves[4]} \t Failed Inverse Shift: {failed_moves[5]}")
+        gathered_counts = [add_moves, delete_moves, flip_moves, shift_moves, inverse_shift_moves]
+        gathered_failed_counts = [failed_add_moves, failed_delete_moves, failed_flip_moves, failed_shift_moves, failed_inverse_shift_moves]
 
-        return moves
+        # Print the success rate for each move
+        print(f"Add: {add_moves} \t Delete: {delete_moves} \t Flip: {flip_moves} \t Shift: {shift_moves} \t Inverse Shift: {inverse_shift_moves}")
+        print(f"Failed Add: {failed_add_moves} \t Failed Delete: {failed_delete_moves} \t Failed Flip: {failed_flip_moves} \t Failed Shift: {failed_shift_moves} \t Failed Inverse Shift: {failed_inverse_shift_moves}")
+        total_moves = add_moves + delete_moves + flip_moves + shift_moves + inverse_shift_moves
+        total_failed_moves = failed_add_moves + failed_delete_moves + failed_flip_moves + failed_shift_moves + failed_inverse_shift_moves
+        print(f"Total: {total_moves + total_failed_moves}")
 
+        return gathered_counts, gathered_failed_counts
+    
     def mcmc_check(self, acceptance_probability: float) -> bool:
         """
         Metropolis-Hastings check for acceptance of a move.
@@ -283,7 +325,7 @@ class Simulation:
         n31 = self.universe.tetras_31.get_number_occupied()
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         n0 = self.universe.vertex_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
         acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
 
         # If the target volume is specified, adjust AP according to the volume switch
@@ -302,10 +344,8 @@ class Simulation:
         
         # Perform the move
         tetra31_label = self.universe.tetras_31.pick()
-        self.universe.add(tetra31_label)
+        return self.universe.add(tetra31_label)
 
-        return True
-    
     def move_delete(self) -> bool:
         """
         Metropolis-Hastings move to delete a tetrahedron.
@@ -317,7 +357,7 @@ class Simulation:
         n31 = self.universe.tetras_31.get_number_occupied()
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         n0 = self.universe.vertex_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
         acceptance_probability = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
 
         # If the target volume is specified, adjust AP according to the volume switch
@@ -345,10 +385,8 @@ class Simulation:
             return False
         
         # Perform the move
-        self.universe.delete(vertex_label)
+        return self.universe.delete(vertex_label)
 
-        return True
-    
     def move_flip(self) -> bool:
         """
         Metropolis-Hastings move to flip a tetrahedron.
@@ -387,8 +425,9 @@ class Simulation:
         """
         acceptance_probability = np.exp(-self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
 
+        # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
                 acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
@@ -422,8 +461,9 @@ class Simulation:
         """
         acceptance_probability = np.exp(-self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
 
+        # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
                 acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
@@ -457,8 +497,9 @@ class Simulation:
         """
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
 
+        # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
                 acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
@@ -507,8 +548,9 @@ class Simulation:
         """
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
 
+        # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
                 acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
@@ -569,13 +611,16 @@ class Simulation:
         border_vvclose = self.target_volume * 0.0001
 
         # Calculate the fixvolume based on the vol_switch
-        vol_switch = self.universe.volfix_switch
+        vol_switch = self.volfix_switch
         fixvolume = 0
         if vol_switch == 0:
             fixvolume = self.universe.tetras_31.get_number_occupied()
         else:
             fixvolume = self.universe.tetrahedron_pool.get_number_occupied()
 
+        print(f"border far: {border_far}", f"border close: {border_close}", f"border vclose: {border_vclose}", f"border vvclose: {border_vvclose}")
+        print(f"!New fixvolume!: {fixvolume}, target volume: {self.target_volume}")
+        print(f"target volume - fixvolume: {self.target_volume - fixvolume}")
         # Adjust k3 based on the difference between target volume and fixvolume
         if (self.target_volume - fixvolume) > border_far:
             self.k3 -= delta_k3 * ratio * 1000
@@ -594,6 +639,7 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
+        print(f"New k3: {self.k3}\n")
         # Append the k3 value to the list
         self.k3_values.append(self.k3)
 
@@ -615,37 +661,35 @@ class Simulation:
         self.k0 = k0
         self.k3 = k3
         self.rng.seed(seed)
-        
         test = {1: 0, -1: 0, 2: 0, -2: 0, 3: 0, -3: 0, 4: 0, -4: 0, 5: 0, -5: 0}
+        start = time.time()
+
         for i in range(N):
-            print(f"Trial: {i} \n")
+            print(f"Trial: {i}")
             move_num = self.attempt_move()
             test[move_num] += 1
-            print(f"Move: {move_num} \n")
-            print(f"Test: {test} \n")
+            print(f"Move: {move_num}, k3: {self.k3}")
+            print(f"Test: {test}")
+            print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
             self.universe.update_geometry()
-            self.universe.check_validity()
+
+
+        self.universe.check_validity()
+        end = time.time()
+        print(f"Time: {end - start} \n")
+        self.universe.export_geometry(f"geometry_k0={k0}_k3={k3}_seed={seed}_N={N}")
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3, volfix_switch=0)
-    # Start simulation
+    universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     simulation = Simulation(universe)
-
-    simulation.start(
-        k0=5, k3=1.703, sweeps=1000, thermal_sweeps=1000, k_steps=1000,
-        target_volume=3000, target2_volume=1000,
+    simulation.start( 
+        k0=0, k3=0.6, sweeps=0, thermal_sweeps=5, k_steps=10000,
+        volfix_switch=1, target_volume=10000, target2_volume=0,
         seed=1, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
 
-    # simulation.start(
-    #     k0=5, k3=1.703, sweeps=1, thermal_sweeps=10, k_steps=100,
-    #     target_volume=0, target2_volume=0,
-    #     seed=1, outfile="test_run/output", validity_check=True,
-    #     v1=1, v2=1, v3=1
-    # )
-
     # # seed = random.randint(0, 1000000)
     # seed = 1
-    # simulation.trial(k0=5, k3=1.7, seed=seed, N=100)
+    # simulation.trial(k0=5, k3=1.7, seed=seed, N=10000)

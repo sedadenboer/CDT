@@ -47,9 +47,9 @@ def main():
     sweeps = args.measuresweeps if args.measuresweeps is not None else 0
     k_steps = args.ksteps if args.ksteps is not None else 0
     strictness = args.strictness if args.strictness is not None else 0
-    v1 = args.v1 if args.v1 is not None else 0
-    v2 = args.v2 if args.v2 is not None else 0
-    v3 = args.v3 if args.v3 is not None else 0
+    v1 = args.v1 if args.v1 is not None else 1
+    v2 = args.v2 if args.v2 is not None else 1
+    v3 = args.v3 if args.v3 is not None else 1
     in_file = args.infile if args.infile is not None else ""
     out_file = args.outfile if args.outfile is not None else ""
 

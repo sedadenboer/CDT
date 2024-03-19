@@ -1,4 +1,4 @@
-# rejection.py
+# behaviour_stats.py
 #
 # Author: Seda den Boer
 # Date: 04-02-2024
