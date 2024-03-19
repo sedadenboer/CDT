@@ -15,6 +15,8 @@ from pool import Pool
 from bag import Bag
 import resource
 import sys
+import pickle
+import os
 
 max_rec = 0x100000
 
@@ -63,7 +65,13 @@ class Universe:
         self.vertex_neighbours = []
         self.triangle_neighbours = []
 
-        self.initialise(geometry_infilename)
+        # If the file is a pickle file, load the universe from the pickle file
+        if geometry_infilename.endswith('.pkl'):
+            with open(geometry_infilename, 'rb') as file:
+                state = pickle.load(file)
+            self.__dict__.update(state)
+        else:
+            self.initialise(geometry_infilename)
 
     def initialise(self, geometry_infilename: str) -> bool:
         """
@@ -1013,6 +1021,7 @@ class Universe:
         for v in self.vertex_pool.get_objects():
             nbr = []
             current_tetra = v.get_tetra()
+            # print(f"Current tetra: {current_tetra.ID}")
             current_tetra_list = [current_tetra]
             next_tetra_list = []
             done_tetra_list = []
@@ -1021,8 +1030,10 @@ class Universe:
             while current_tetra_list:
                 # Get the current tetra to check and its neighbours
                 for current_tetra_check in current_tetra_list:
+                    # print(f"Current tetra check: {current_tetra_check.ID}")
+                    # print(f"neighbours: {current_tetra_check.get_tetras()}")
                     for tetra_neighbour in current_tetra_check.get_tetras():
-                        # IF the neighbour does not have the current vertex, continue
+                        # If the neighbour does not have the current vertex, continue
                         if not tetra_neighbour.has_vertex(v):
                             continue
                     
@@ -1250,45 +1261,40 @@ class Universe:
         print("Valid! :)")
         print("====================================================")
 
-    def export_geometry(self, geometry_outfilename: str = "output") -> bool:
+    def export_geometry(self, geometry_outfilename: str = "output", as_pickle: bool = True) -> bool:
         """
         Export the geometry of the Universe.
         """
         self.update_geometry()
 
-        vertex_map = {}
-        int_v_map = [None] * self.vertex_pool.get_number_occupied()
+        directory = os.path.dirname(geometry_outfilename)
+        os.makedirs(directory, exist_ok=True)
 
-        for i, v in enumerate(self.vertex_pool.get_objects()):
-            vertex_map[v] = i
-            int_v_map[i] = v
+        # Save as pickle 
+        if as_pickle:
+            with open('saved_universes/' + geometry_outfilename + '.pkl', 'wb') as file:
+                pickle.dump(self.__dict__, file, protocol=pickle.HIGHEST_PROTOCOL)
+        else:
+            # Save as text
+            out = "1\n"
+            out += f"{self.vertex_pool.get_number_occupied()}\n"
 
-        tetra_map = {}
-        int_t_map = [None] * self.tetrahedron_pool.get_number_occupied()
+            for vertex in self.vertex_pool.get_objects():
+                out += f"{vertex.time}\n"
 
-        for i, t in enumerate(self.tetrahedron_pool.get_objects()):
-            tetra_map[t] = i
-            int_t_map[i] = t
+            out += f"{self.vertex_pool.get_number_occupied()}\n"
+            out += f"{self.tetrahedron_pool.get_number_occupied()}\n"
+            
+            for tetra in self.tetrahedron_pool.get_objects():
+                for vertex in tetra.get_vertices():
+                    out += f"{vertex.ID}\n"
+                for neighbour in tetra.get_tetras():
+                    out += f"{neighbour.ID}\n"
 
-        out = "1\n"
-        out += f"{self.vertex_pool.get_number_occupied()}\n"
+            out += f"{self.tetrahedron_pool.get_number_occupied()}"
 
-        for v in int_v_map:
-            out += f"{v.time}\n"
-
-        out += f"{self.vertex_pool.get_number_occupied()}\n"
-        out += f"{self.tetrahedron_pool.get_number_occupied()}\n"
-
-        for t in int_t_map:
-            for v in t.get_vertices():
-                out += f"{vertex_map[v]}\n"
-            for tn in t.get_tetras():
-                out += f"{tetra_map[tn]}\n"
-
-        out += f"{self.tetrahedron_pool.get_number_occupied()}"
-
-        with open(f"saved_universes/{geometry_outfilename}.txt", "w") as file:
-            file.write(out + "\n")
+            with open(f"saved_universes/{geometry_outfilename}.txt", "w") as file:
+                file.write(out + "\n")
 
         print(f"Geometry exported to {geometry_outfilename}.")
 
@@ -1296,20 +1302,22 @@ class Universe:
 
 
 if __name__ == "__main__":
-    u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
-    u.strictness = 3
-    # u.update_geometry()
-    # u.check_validity()
+    # v = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
+    u = Universe(geometry_infilename="saved_universes/test_run/output_final.pkl")
+    for tetra in u.tetrahedron_pool.get_objects():
+        tetra.log()
+    u.update_geometry()
+    u.check_validity()
 
-    # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
-    # Check delete and add move
-    random31 = u.tetras_31.pick()
-    size_n3 = u.tetrahedron_pool.size
-    size_n31 = u.tetras_31.size
-    u.add(random31)
-    print(f"Size n3: {size_n3}, Size n31: {size_n31}\nSize n3 after add: {u.tetrahedron_pool.size}, Size n31 after add: {u.tetras_31.size}")
-    print(u.delete(15))
-    print(f"Size n3 after delete: {u.tetrahedron_pool.size}, Size n31 after delete: {u.tetras_31.size}")
+    # # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
+    # # Check delete and add move
+    # random31 = u.tetras_31.pick()
+    # size_n3 = u.tetrahedron_pool.size
+    # size_n31 = u.tetras_31.size
+    # u.add(random31)
+    # print(f"Size n3: {size_n3}, Size n31: {size_n31}\nSize n3 after add: {u.tetrahedron_pool.size}, Size n31 after add: {u.tetras_31.size}")
+    # print(u.delete(15))
+    # print(f"Size n3 after delete: {u.tetrahedron_pool.size}, Size n31 after delete: {u.tetras_31.size}")
 
     # # Set of neighbours
     # t31 = u.tetrahedron_pool.get(u.tetras_31.pick())

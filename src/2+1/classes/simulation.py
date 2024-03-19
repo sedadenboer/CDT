@@ -37,7 +37,8 @@ class Simulation:
         self.target_volume = 0
         self.target2_volume = 0
         self.rng = random.Random(0)
-        self.epsilon = 0.001
+        # self.epsilon = 0.00004
+        self.epsilon = 0.002
         self.measuring = False
         self.observables_3d = []
         self.observables_2d = []
@@ -106,9 +107,9 @@ class Simulation:
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
-            # # Export the geometry every 10% of the thermal sweeps
-            # if i % (thermal_sweeps / 10) == 0:
-            #     self.universe.export_geometry(outfile + f"_thermal_{i}")
+            # Export the geometry every 10% of the thermal sweeps
+            if i % (thermal_sweeps / 10) == 0:
+                self.universe.export_geometry(outfile + f"_thermal_{i}")
             
             # Update geometry and measure observables related to 3D structures
             self.prepare()
@@ -618,9 +619,10 @@ class Simulation:
         else:
             fixvolume = self.universe.tetrahedron_pool.get_number_occupied()
 
-        print(f"border far: {border_far}", f"border close: {border_close}", f"border vclose: {border_vclose}", f"border vvclose: {border_vvclose}")
-        print(f"!New fixvolume!: {fixvolume}, target volume: {self.target_volume}")
-        print(f"target volume - fixvolume: {self.target_volume - fixvolume}")
+        # print(f"border far: {border_far}", f"border close: {border_close}", f"border vclose: {border_vclose}", f"border vvclose: {border_vvclose}")
+        # print(f"!New fixvolume!: {fixvolume}, target volume: {self.target_volume}")
+        # print(f"target volume - fixvolume: {self.target_volume - fixvolume}")
+            
         # Adjust k3 based on the difference between target volume and fixvolume
         if (self.target_volume - fixvolume) > border_far:
             self.k3 -= delta_k3 * ratio * 1000
@@ -684,7 +686,7 @@ if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     simulation = Simulation(universe)
     simulation.start( 
-        k0=0, k3=0.6, sweeps=0, thermal_sweeps=5, k_steps=10000,
+        k0=5, k3=1.6, sweeps=0, thermal_sweeps=2, k_steps=1000,
         volfix_switch=1, target_volume=10000, target2_volume=0,
         seed=1, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
