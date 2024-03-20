@@ -37,8 +37,8 @@ class Simulation:
         self.target_volume = 0
         self.target2_volume = 0
         self.rng = random.Random(0)
-        # self.epsilon = 0.00004
-        self.epsilon = 0.002
+        self.epsilon = 0.00005
+        # self.epsilon = 0.002
         self.measuring = False
         self.observables_3d = []
         self.observables_2d = []
@@ -46,6 +46,9 @@ class Simulation:
         self.k3_values = []
         self.total_vertices = []
         self.total_tetras = []
+        self.save_process = False
+        self.save_final = False
+        self.saving_interval = 10
 
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
@@ -108,9 +111,10 @@ class Simulation:
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
             # Export the geometry every 10% of the thermal sweeps
-            if i % (thermal_sweeps / 10) == 0:
-                self.universe.export_geometry(outfile + f"_thermal_{i}")
-            
+            if self.save_process:
+                if i % self.saving_interval == 0:
+                    self.universe.export_geometry(outfile + f"_thermal_{i}")
+                
             # Update geometry and measure observables related to 3D structures
             self.prepare()
             # for o in self.observables_3d:
@@ -141,8 +145,9 @@ class Simulation:
             self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
             # Export the geometry every 10% of the main sweeps
-            if i % (sweeps / 10) == 0:
-                self.universe.export_geometry(outfile + f"_main_{i}")
+            if self.save_process:
+                if i % self.saving_interval == 0:
+                    self.universe.export_geometry(outfile + f"_main_{i}")
             
             # Check if there are any 3D observables to be measured
             if len(self.observables_3d) > 0: 
@@ -189,7 +194,8 @@ class Simulation:
             self.universe.check_validity()
 
         # Export the final geometry
-        self.universe.export_geometry(outfile + "_final")
+        if self.save_final:
+            self.universe.export_geometry(outfile + "_final")
 
     def attempt_move(self) -> int:
         """
@@ -685,10 +691,11 @@ class Simulation:
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     simulation = Simulation(universe)
+    simulation.saving_interval = 100
     simulation.start( 
-        k0=5, k3=1.6, sweeps=0, thermal_sweeps=2, k_steps=1000,
+        k0=0, k3=0.7, sweeps=0, thermal_sweeps=10, k_steps=1000000,
         volfix_switch=1, target_volume=10000, target2_volume=0,
-        seed=1, outfile="test_run/output", validity_check=True,
+        seed=0, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
 
