@@ -101,7 +101,7 @@ class Simulation:
             total_2v = sum(self.universe.slice_sizes)
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            print(f"\nThermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k3: {self.k3}")
+            print(f"\nThermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k0: {self.k0}, k3: {self.k3}")
 
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps)
@@ -121,77 +121,80 @@ class Simulation:
             #     o.measure(self.universe)
 
         if validity_check:
+            self.universe.log()
             self.universe.check_validity()
 
-        # Main sweeps
-        print("========================================\n")
-        print("MAIN SWEEPS\n")
-        print("----------------------------------------\n")
-        print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}\n")
-        print("----------------------------------------\n")
+        if sweeps > 0:
+            # Main sweeps
+            print("========================================\n")
+            print("MAIN SWEEPS\n")
+            print("----------------------------------------\n")
+            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}\n")
+            print("----------------------------------------\n")
 
-        for i in range(1, sweeps + 1):
-            # Get the current state of the universe and print it
-            total_2v = sum(self.universe.slice_sizes)
-            n31 = self.universe.tetras_31.get_number_occupied()
-            n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            avg_2v = total_2v / self.universe.n_slices
-            print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
+            for i in range(1, sweeps + 1):
+                # Get the current state of the universe and print it
+                total_2v = sum(self.universe.slice_sizes)
+                n31 = self.universe.tetras_31.get_number_occupied()
+                n3 = self.universe.tetrahedron_pool.get_number_occupied()
+                avg_2v = total_2v / self.universe.n_slices
+                print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
 
-            # Perform sweeps and tune the k3 parameter
-            self.perform_sweep(k_steps)
+                # Perform sweeps and tune the k3 parameter
+                self.perform_sweep(k_steps)
 
-            self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
-            self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
+                self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
+                self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
 
-            # Export the geometry every 10% of the main sweeps
-            if self.save_process:
-                if i % self.saving_interval == 0:
-                    self.universe.export_geometry(outfile + f"_main_{i}")
-            
-            # Check if there are any 3D observables to be measured
-            if len(self.observables_3d) > 0: 
-                # Remove if volume should fluctuate during measurements
-                vol_switch = self.volfix_switch
-
-                # Ensure that the universe is at the target volume (if specified)
-                if target_volume > 0:
-                    # Flag to track if the target volume is reached
-                    compare = 0
-
-                    # Attempt moves until the target volume is reached
-                    while compare != target_volume:
-                        self.attempt_move()
-                        # Update the compare variable based on the volume switch
-                        compare = self.universe.tetras31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
-
-                # Update geometry and measure observables related to 3D structures
-                self.prepare()
-                # for o in self.observables_3d:
-                #     o.measure(self.universe)
-            
-            # Check if there's a 2D target volume specified for the timeslices
-            if target2_volume > 0:
-                # Flag to track if the 2D target volume is reached
-                hit = False
-
-                # Attempt moves until the 2D target volume is reached
-                while not hit:
-                    self.attempt_move()
-
-                    # Check if any slice matches the 2D target volume
-                    for s in self.universe.slice_sizes:
-                         if s == target2_volume:
-                             hit = True
-                             break
+                # Export the geometry every 10% of the main sweeps
+                if self.save_process:
+                    if i % self.saving_interval == 0:
+                        self.universe.export_geometry(outfile + f"_main_{i}")
                 
-                # Update geometry and measure observables related to 2D structures
-                self.prepare()
-                # for o in self.observables_2d:
-                #     o.measure(self.universe)
-        
-        if validity_check:
-            self.universe.check_validity()
+                # Check if there are any 3D observables to be measured
+                if len(self.observables_3d) > 0: 
+                    # Remove if volume should fluctuate during measurements
+                    vol_switch = self.volfix_switch
+
+                    # Ensure that the universe is at the target volume (if specified)
+                    if target_volume > 0:
+                        # Flag to track if the target volume is reached
+                        compare = 0
+
+                        # Attempt moves until the target volume is reached
+                        while compare != target_volume:
+                            self.attempt_move()
+                            # Update the compare variable based on the volume switch
+                            compare = self.universe.tetras31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
+
+                    # Update geometry and measure observables related to 3D structures
+                    self.prepare()
+                    # for o in self.observables_3d:
+                    #     o.measure(self.universe)
+                
+                # Check if there's a 2D target volume specified for the timeslices
+                if target2_volume > 0:
+                    # Flag to track if the 2D target volume is reached
+                    hit = False
+
+                    # Attempt moves until the 2D target volume is reached
+                    while not hit:
+                        self.attempt_move()
+
+                        # Check if any slice matches the 2D target volume
+                        for s in self.universe.slice_sizes:
+                            if s == target2_volume:
+                                hit = True
+                                break
+                    
+                    # Update geometry and measure observables related to 2D structures
+                    self.prepare()
+                    # for o in self.observables_2d:
+                    #     o.measure(self.universe)
+            
+            if validity_check:
+                self.universe.log()
+                self.universe.check_validity()
 
         # Export the final geometry
         if self.save_final:
@@ -296,7 +299,6 @@ class Simulation:
         print(f"Failed Add: {failed_add_moves} \t Failed Delete: {failed_delete_moves} \t Failed Flip: {failed_flip_moves} \t Failed Shift: {failed_shift_moves} \t Failed Inverse Shift: {failed_inverse_shift_moves}")
         total_moves = add_moves + delete_moves + flip_moves + shift_moves + inverse_shift_moves
         total_failed_moves = failed_add_moves + failed_delete_moves + failed_flip_moves + failed_shift_moves + failed_inverse_shift_moves
-        print(f"Total: {total_moves + total_failed_moves}")
 
         return gathered_counts, gathered_failed_counts
     
@@ -647,7 +649,7 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
-        print(f"New k3: {self.k3}\n")
+        # print(f"New k3: {self.k3}\n")
         # Append the k3 value to the list
         self.k3_values.append(self.k3)
 
@@ -673,16 +675,20 @@ class Simulation:
         start = time.time()
 
         for i in range(N):
-            print(f"Trial: {i}")
-            move_num = self.attempt_move()
+            # print(f"Trial: {i}")
+            # move_num = self.attempt_move()
+            move_num = self.attempt_simple()
             test[move_num] += 1
-            print(f"Move: {move_num}, k3: {self.k3}")
-            print(f"Test: {test}")
-            print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
+            # print(f"Move: {move_num}, k3: {self.k3}")
+            # print(f"Test: {test}")
+            # print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
             self.universe.update_geometry()
 
+            # if move_num > 0:
+            #     self.universe.check_validity()
 
-        self.universe.check_validity()
+        self.check_validity()
+
         end = time.time()
         print(f"Time: {end - start} \n")
         self.universe.export_geometry(f"geometry_k0={k0}_k3={k3}_seed={seed}_N={N}")
@@ -691,14 +697,17 @@ class Simulation:
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     simulation = Simulation(universe)
+    simulation.universe.log()
     simulation.saving_interval = 100
     simulation.start( 
-        k0=0, k3=0.7, sweeps=0, thermal_sweeps=10, k_steps=1000000,
+        k0=7, k3=2.1, sweeps=0, thermal_sweeps=10, k_steps=100000,
         volfix_switch=1, target_volume=10000, target2_volume=0,
         seed=0, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
+    simulation.universe.make_network_graph()
+    print("Done")
 
     # # seed = random.randint(0, 1000000)
     # seed = 1
-    # simulation.trial(k0=5, k3=1.7, seed=seed, N=10000)
+    # simulation.trial(k0=7, k3=2.3, seed=seed, N=100000)

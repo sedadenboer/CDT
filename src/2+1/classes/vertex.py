@@ -84,7 +84,7 @@ class Vertex:
                         continue
 
                     # If the tetrahedron contains the vertex, return True
-                    if neighbour_current_tetra not in done and neighbour_current_tetra.has_vertex(v):
+                    if neighbour_current_tetra not in done:
                         if neighbour_current_tetra.has_vertex(v):
                             return True
                         
@@ -95,3 +95,12 @@ class Vertex:
             next = []
 
         return False
+
+    def log(self) -> str:
+        """
+        Returns a string representation of the vertex.
+
+        Returns:
+            str: A string representation of the vertex.
+        """
+        return f"Vertex {self.ID} @ time {self.time} with cnum {self.cnum} and scnum {self.scnum}."
