@@ -19,6 +19,7 @@ import pickle
 import os
 import networkx as nx
 import matplotlib.pyplot as plt
+import gzip
 
 max_rec = 0x100000
 
@@ -69,8 +70,8 @@ class Universe:
         self.triangle_neighbours = []
 
         # If the file is a pickle file, load the universe from the pickle file
-        if geometry_infilename.endswith('.pkl'):
-            with open(geometry_infilename, 'rb') as file:
+        if geometry_infilename.endswith('.pkl.gz'):
+            with gzip.open(geometry_infilename, 'rb') as file:
                 state = pickle.load(file)
             self.__dict__.update(state)
         else:
@@ -527,15 +528,9 @@ class Universe:
         v3 = t230.get_vertex_opposite_tetra(t012)
         
         # Get the remaining base vertices
-        # remaining_vertices = [v for v in t012.get_vertices() if v not in [v1, vt]]
-        # v0 = remaining_vertices[0]
-        # v2 = remaining_vertices[1]
-        # Get the remaining base vertices
         v1pos = t012.get_vertices().index(v1)
         v2 = t012.get_vertices()[(v1pos + 1) % 3]
         v0 = t012.get_vertices()[(v1pos + 2) % 3]
-
-        # print(f"v0: {v0.ID}, v1: {v1.ID}, v2: {v2.ID}, v3: {v3.ID}, vt: {vt.ID}, vb: {vb.ID}.")
 
         # Manifold conditions
         if self.strictness >= 1:
@@ -560,9 +555,6 @@ class Universe:
         tva23 = tv230.get_tetra_opposite(v0)
         tva30 = tv230.get_tetra_opposite(v2)
 
-        # print(f"ta01: {ta01.ID}, ta12: {ta12.ID}, ta23: {ta23.ID}, ta30: {ta30.ID}.")
-        # print(f"tva01: {tva01.ID}, tva12: {tva12.ID}, tva23: {tva23.ID}, tva30: {tva30.ID}.\n")
-     
         # Make sure the move is valid
         if ta01 == t230:
             return False
@@ -1338,14 +1330,14 @@ class Universe:
 
         # Save as pickle 
         if as_pickle:
-            with open('saved_universes/' + geometry_outfilename + '.pkl', 'wb') as file:
+            with gzip.open('saved_universes/' + geometry_outfilename + '.pkl.gz', 'wb') as file:
                 pickle.dump(self.__dict__, file, protocol=pickle.HIGHEST_PROTOCOL)
         else:
             # Save as text
-            out = "1\n"
+            out = "0\n"
             out += f"{self.vertex_pool.get_number_occupied()}\n"
 
-            for vertex in self.vertex_pool.get_objects():
+            for vertex in sorted(self.vertex_pool.get_objects(), key=lambda v: v.time):
                 out += f"{vertex.time}\n"
 
             out += f"{self.vertex_pool.get_number_occupied()}\n"
@@ -1410,12 +1402,14 @@ class Universe:
             tetra.log()
         print("====================================================")
 
+
 if __name__ == "__main__":
-    # v = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
+    v = Universe(geometry_infilename="saved_universes/test_run/output_thermal_1.pkl.gz")
     u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
-    u.update_geometry()
-    u.check_validity()
-    u.log()
+    v.update_geometry()
+    v.check_validity()
+    v.log()
+    v.make_network_graph()
 
     # # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
     # # Check delete and add move

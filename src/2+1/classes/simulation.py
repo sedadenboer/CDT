@@ -8,7 +8,6 @@
 # related to the actual Monte Carlo simulation.
 
 import random
-import copy
 import numpy as np
 import time
 from universe import Universe
@@ -49,6 +48,7 @@ class Simulation:
         self.save_process = False
         self.save_final = False
         self.saving_interval = 10
+        self.as_pickle = True
 
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
@@ -82,6 +82,7 @@ class Simulation:
         self.target2_volume = target2_volume
         self.rng.seed(seed)
         self.measuring = True
+        self.saving_interval = thermal_sweeps
 
         # Clear observables
         for o in self.observables_3d:
@@ -113,7 +114,7 @@ class Simulation:
             # Export the geometry every 10% of the thermal sweeps
             if self.save_process:
                 if i % self.saving_interval == 0:
-                    self.universe.export_geometry(outfile + f"_thermal_{i}")
+                    self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
                 
             # Update geometry and measure observables related to 3D structures
             self.prepare()
@@ -121,7 +122,7 @@ class Simulation:
             #     o.measure(self.universe)
 
         if validity_check:
-            self.universe.log()
+            # self.universe.log()
             self.universe.check_validity()
 
         if sweeps > 0:
@@ -140,7 +141,7 @@ class Simulation:
                 avg_2v = total_2v / self.universe.n_slices
                 print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
 
-                # Perform sweeps and tune the k3 parameter
+                # Perform sweeps
                 self.perform_sweep(k_steps)
 
                 self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
@@ -149,7 +150,7 @@ class Simulation:
                 # Export the geometry every 10% of the main sweeps
                 if self.save_process:
                     if i % self.saving_interval == 0:
-                        self.universe.export_geometry(outfile + f"_main_{i}")
+                        self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
                 
                 # Check if there are any 3D observables to be measured
                 if len(self.observables_3d) > 0: 
@@ -697,15 +698,19 @@ class Simulation:
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     simulation = Simulation(universe)
-    simulation.universe.log()
-    simulation.saving_interval = 100
+    simulation.save_process = False
+    simulation.as_pickle = True
     simulation.start( 
-        k0=7, k3=2.1, sweeps=0, thermal_sweeps=10, k_steps=100000,
+        k0=5, k3=1.7, sweeps=0, thermal_sweeps=50, k_steps=100000,
         volfix_switch=1, target_volume=10000, target2_volume=0,
         seed=0, outfile="test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
-    simulation.universe.make_network_graph()
+    # simulation.universe.make_network_graph()
+    N3 = simulation.universe.tetrahedron_pool.size
+    N31 = simulation.universe.tetras_31.size
+    N22 = N3 - N31
+    print(f"N3: {N3}, N31: {N31}, N2: {N22}")
     print("Done")
 
     # # seed = random.randint(0, 1000000)
