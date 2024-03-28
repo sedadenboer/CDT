@@ -30,7 +30,9 @@ def critical_k3_simulation_worker(geometry_infilename: str, strictness: int, k0:
     """
     universe = Universe(geometry_infilename=geometry_infilename, strictness=strictness)
     simulation = Simulation(universe)
-    simulation.saving_interval = 100
+    simulation.save_process = True
+    simulation.save_final = True
+    simulation.as_pickle = True
 
     print(f"Running k0={k0}, k3_init_guess={k3_init_guess}, chain={chain}")
     simulation.start(
@@ -41,7 +43,7 @@ def critical_k3_simulation_worker(geometry_infilename: str, strictness: int, k0:
         k_steps=k_steps,
         target_volume=target_volume,
         target2_volume=target2_volume,
-        volfix_switch=1,
+        volfix_switch=0,
         seed=chain,
         outfile=f"k3/swps={sweeps}_tswps={thermal_sweeps}_kstps={k_steps}_trgtvol={target_volume}_k0={k0}_chain={chain}",
         validity_check=True,
@@ -144,10 +146,10 @@ def phase_transition_worker(geometry_infilename: str, strictness: int, k0: int, 
     """
     universe = Universe(geometry_infilename=geometry_infilename, strictness=strictness)
     simulation = Simulation(universe)
-    simulation.save_process = False
+    simulation.save_process = True
     simulation.save_final = True
     simulation.as_pickle = True
-
+    volfix_switch = 0
     print(f"Running k0={k0}, k3_init_guess={k3_init_guess}, chain={chain}")
     simulation.start(
         k0=k0,
@@ -157,22 +159,26 @@ def phase_transition_worker(geometry_infilename: str, strictness: int, k0: int, 
         k_steps=k_steps,
         target_volume=target_volume,
         target2_volume=target2_volume,
-        volfix_switch=1,
+        volfix_switch=volfix_switch,
         seed=chain,
         outfile=f"N/measurements/swps={sweeps}_tswps={thermal_sweeps}_kstps={k_steps}_trgtvol={target_volume}_k0={k0}_chain={chain}",
-        validity_check=True,
+        validity_check=False,
         v1=1,
         v2=1,
         v3=1
     )
 
-    N3 = simulation.universe.tetrahedron_pool.get_number_occupied()
-    N31 = simulation.universe.tetras_31.get_number_occupied()
-    N22 = N3 - N31
+    # N3 = simulation.universe.tetrahedron_pool.get_number_occupied()
+    # N31 = simulation.universe.tetras_31.get_number_occupied()
+    # N22 = simulation.universe.tetras_22.get_number_occupied()
+    # print(f"N3: {N3}, N31: {N31}, N13: {N3 - N31 - N22}, N22: {N22}")
 
-    print(f"N3: {N3}, N31: {N31}, N22: {N22}")
+    if volfix_switch == 1:
+        result = simulation.expected_N22_N3
+    else:
+        result = simulation.expected_N22_N31
 
-    return N22 / N31
+    return result
 
 def phase_transition_parallel(geometry_infilename: str = '../classes/initial_universes/sample-g0-T3.cdt', strictness: int = 3, chains: int = 10) -> pd.DataFrame:
     """
@@ -196,9 +202,11 @@ def phase_transition_parallel(geometry_infilename: str = '../classes/initial_uni
     k_steps = 100000
     target_volume = 10000
     target2_volume = 0
+    processes  = len(k0_values)
+    assert processes <= multiprocessing.cpu_count(), "Number of processes exceeds the number of available CPUs."
 
     for chain in range(chains):
-        with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
+        with multiprocessing.Pool(processes=processes) as pool:
             # Prepare arguments
             items = [(geometry_infilename, strictness, k0, k3_init_guess[i], sweeps, thermal_sweeps, k_steps, target_volume, target2_volume, chain) for i, k0 in enumerate(k0_values)]
             phase_transition_values = pool.starmap(phase_transition_worker, items)
@@ -211,6 +219,7 @@ def phase_transition_parallel(geometry_infilename: str = '../classes/initial_uni
         # Wait for all tasks to finish
         pool.join()
 
+
     # Save the critical k3 values as a dataframe
     df = pd.DataFrame(all_data, columns=k0_values)
     df.index.name = 'chain'
@@ -221,15 +230,20 @@ def phase_transition_parallel(geometry_infilename: str = '../classes/initial_uni
 
     return df
 
-def plot_phase_transition(load_df: bool = False, df_path: str = ""):
+def plot_phase_transition(load_df: int = 0, fixvol_type: int = 1, df_path: str = ""):
     """
     Plots the N22/N31 values for different k0 values.
 
     Args:
-        load_df (bool, optional): _description_. Defaults to False.
-        df_path (str, optional): _description_. Defaults to "".
+        load_df (int): 
+            0: Load the dataframe from a file.
+            1: Run the phase transition simulations in parallel.
+        fixvol_type (int):
+            1: N22/N3 values.
+            2: N22/N31 values.
+        df_path (str, optional): The path to the dataframe file. Defaults to "".
     """
-    if load_df:
+    if load_df == 0:
         df = pd.read_csv(df_path, index_col=0)
     else:
         df = phase_transition_parallel()
@@ -239,20 +253,26 @@ def plot_phase_transition(load_df: bool = False, df_path: str = ""):
     # Plot the N22/N3 values
     fig, ax = plt.subplots(figsize=(8, 6))
     df.mean().plot(ax=ax, yerr=df.std(), fmt='.', capsize=5, color='royalblue')
-    ax.set_title('$N_{22}/N_{31}$ values for different $k_0$ values', fontsize=18)
     ax.set_xlabel('$k_0$')
-    ax.set_ylabel('$N_{22}/N_{31}$')
     ax.grid(True, which="both", ls="-", alpha=0.6)
     ax.bbox_inches = 'tight'
-    plt.savefig('plots/N22_N31_values.png', dpi=400)
+    if fixvol_type == 1:
+        ax.set_title('$N_{22}/N_{3}$ values for different $k_0$ values', fontsize=18)
+        ax.set_ylabel('$N_{22}/N_{3}$')
+        plt.savefig('plots/N22_N3_values.png', dpi=400)
+    else:
+        ax.set_title('$N_{22}/N_{31}$ values for different $k_0$ values', fontsize=18)
+        ax.set_ylabel('$N_{22}/N_{31}$')
+        plt.savefig('plots/N22_N31_values.png', dpi=400)
+
     plt.show()
 
 
 if __name__ == "__main__":
     # critical_k3_parallel(chains=10)
-    plot_critical_k3(load_df=True, df_path='saved_universes/k3/measurements/critical_k3_values_swps=0_tswps=50_kstps=100000_trgtv=10000.csv')
+    # plot_critical_k3(load_df=True, df_path='saved_universes/k3/measurements/critical_k3_values_swps=0_tswps=50_kstps=100000_trgtv=10000.csv')
     
-    # phase_transition_parallel(chains=10)
-    plot_phase_transition(load_df=True, df_path='saved_universes/N/phase_transition_values_swps=10_tswps=50_kstps=100000_trgtv=10000.csv')
+    phase_transition_parallel(chains=1)
+    # plot_phase_transition(load_df=1, df_path='saved_universes/N/phase_transition_values_swps=10_tswps=50_kstps=100000_trgtv=10000.csv')
     print("Done")
 

@@ -43,8 +43,12 @@ class Simulation:
         self.observables_2d = []
         self.move_freqs = (1, 1, 1)
         self.k3_values = []
+        self.N31_sizes = []
+        self.N22_sizes = []
+        self.N22_N31_ratio = []
+        self.N22_N3_ratio = []
+        self.total_tetrahedra = []
         self.total_vertices = []
-        self.total_tetras = []
         self.save_process = False
         self.save_final = False
         self.saving_interval = 10
@@ -84,11 +88,11 @@ class Simulation:
         self.measuring = True
         self.saving_interval = thermal_sweeps
 
-        # Clear observables
-        for o in self.observables_3d:
-            o.clear()
-        for o in self.observables_2d:
-            o.clear()
+        # # Clear observables
+        # for o in self.observables_3d:
+        #     o.clear()
+        # for o in self.observables_2d:
+        #     o.clear()
         
         # Thermal sweeps
         print("========================================\n")
@@ -102,22 +106,23 @@ class Simulation:
             total_2v = sum(self.universe.slice_sizes)
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            print(f"\nThermal: i: {i} \t tetra size: {n3} tetras31 size: {n31} k0: {self.k0}, k3: {self.k3}")
+            n22 = self.universe.tetras_22.get_number_occupied()
+            print(f"\nThermal i: {i} \t N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
 
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps)
             self.tune()
 
             self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
-            self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
+            self.total_tetrahedra.append(n3)
 
             # Export the geometry every 10% of the thermal sweeps
             if self.save_process:
                 if i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
                 
-            # Update geometry and measure observables related to 3D structures
-            self.prepare()
+            # # Update geometry and measure observables related to 3D structures
+            # self.prepare()
             # for o in self.observables_3d:
             #     o.measure(self.universe)
 
@@ -138,14 +143,16 @@ class Simulation:
                 total_2v = sum(self.universe.slice_sizes)
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
+                n22 = self.universe.tetras_22.get_number_occupied()
                 avg_2v = total_2v / self.universe.n_slices
-                print(f"Main: i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT n3: {n3} avgslice: {avg_2v}\n")
+                print(f"Main i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, avgslice: {avg_2v}\n")
 
                 # Perform sweeps
                 self.perform_sweep(k_steps)
-
+                
+                # Save sizes
                 self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
-                self.total_tetras.append(self.universe.tetrahedron_pool.get_number_occupied())
+                self.total_tetrahedra.append(n3)
 
                 # Export the geometry every 10% of the main sweeps
                 if self.save_process:
@@ -168,8 +175,8 @@ class Simulation:
                             # Update the compare variable based on the volume switch
                             compare = self.universe.tetras31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
 
-                    # Update geometry and measure observables related to 3D structures
-                    self.prepare()
+                    # # Update geometry and measure observables related to 3D structures
+                    # self.prepare()
                     # for o in self.observables_3d:
                     #     o.measure(self.universe)
                 
@@ -188,14 +195,22 @@ class Simulation:
                                 hit = True
                                 break
                     
-                    # Update geometry and measure observables related to 2D structures
-                    self.prepare()
+                    # # Update geometry and measure observables related to 2D structures
+                    # self.prepare()
                     # for o in self.observables_2d:
                     #     o.measure(self.universe)
             
             if validity_check:
                 self.universe.log()
                 self.universe.check_validity()
+
+        # Compute <N22/N3(1)> variable
+        if sweeps > 0:
+            self.expected_N22_N31 = sum(self.N22_N31_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
+            self.expected_N22_N3 = sum(self.N22_N3_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
+
+        self.expected_N22_N31_with_thermal = sum(self.N22_N31_ratio) / ((thermal_sweeps + sweeps) * k_steps)
+        self.expected_N22_N3_with_thermal = sum(self.N22_N3_ratio) / ((thermal_sweeps + sweeps) * k_steps)
 
         # Export the final geometry
         if self.save_final:
@@ -292,14 +307,21 @@ class Simulation:
                 elif move == 5:
                     failed_inverse_shift_moves += 1
 
+            # Append the sizes of N31, N3 and N22
+            n31 = self.universe.tetras_31.get_number_occupied()
+            n3 = self.universe.tetrahedron_pool.get_number_occupied()
+            n22 = self.universe.tetras_22.get_number_occupied()
+            self.N31_sizes.append(n31)
+            self.N22_sizes.append(n22)
+            self.N22_N31_ratio.append(n22 / n31)
+            self.N22_N3_ratio.append(n22 / n3)
+
         gathered_counts = [add_moves, delete_moves, flip_moves, shift_moves, inverse_shift_moves]
         gathered_failed_counts = [failed_add_moves, failed_delete_moves, failed_flip_moves, failed_shift_moves, failed_inverse_shift_moves]
 
         # Print the success rate for each move
         print(f"Add: {add_moves} \t Delete: {delete_moves} \t Flip: {flip_moves} \t Shift: {shift_moves} \t Inverse Shift: {inverse_shift_moves}")
         print(f"Failed Add: {failed_add_moves} \t Failed Delete: {failed_delete_moves} \t Failed Flip: {failed_flip_moves} \t Failed Shift: {failed_shift_moves} \t Failed Inverse Shift: {failed_inverse_shift_moves}")
-        total_moves = add_moves + delete_moves + flip_moves + shift_moves + inverse_shift_moves
-        total_failed_moves = failed_add_moves + failed_delete_moves + failed_flip_moves + failed_shift_moves + failed_inverse_shift_moves
 
         return gathered_counts, gathered_failed_counts
     
@@ -314,13 +336,15 @@ class Simulation:
             bool: True if the move was accepted, False otherwise.
         """
         # Get the minimum between 1 and AP and generate random uniform number
-        min_acceptance_ratio = min(1, acceptance_probability)
-        random_number = self.rng.random()
+        # min_acceptance_ratio = min(1, acceptance_probability)
+        # random_number = self.rng.random()
 
         # Reject
-        if random_number > min_acceptance_ratio:
-            return False
-        
+        if acceptance_probability < 1:
+            random_number = self.rng.random()
+            if random_number > acceptance_probability:
+                return False
+            
         # Accept
         return True
     
@@ -337,6 +361,7 @@ class Simulation:
         n0 = self.universe.vertex_pool.get_number_occupied()
         vol_switch = self.volfix_switch
         acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
+        # print(f"Add AP: {acceptance_probability}")
 
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 0:
@@ -369,7 +394,7 @@ class Simulation:
         n0 = self.universe.vertex_pool.get_number_occupied()
         vol_switch = self.volfix_switch
         acceptance_probability = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
-
+        # print(f"Delete AP: {acceptance_probability}")
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 0:
             if self.target_volume > 0:
@@ -436,7 +461,7 @@ class Simulation:
         acceptance_probability = np.exp(-self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-
+        # print(f"Shift u AP: {acceptance_probability}")
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
@@ -491,7 +516,7 @@ class Simulation:
         tetra22 = tetra13.get_tetras()[random_neighbour]
         
         # Check if the tetrahedron is actually of type (2,2)
-        if not tetra22.is_22() or not tetra13.is_13():
+        if not tetra22.is_22():
             return False
         
         # Try the move
@@ -508,7 +533,7 @@ class Simulation:
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-
+        # print(f"Ishift AP: {acceptance_probability}")
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
@@ -559,7 +584,7 @@ class Simulation:
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-
+        # print(f"Ishift d AP: {acceptance_probability}")
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
@@ -678,41 +703,41 @@ class Simulation:
         for i in range(N):
             # print(f"Trial: {i}")
             # move_num = self.attempt_move()
-            move_num = self.attempt_simple()
+            move_num = self.attempt_move()
             test[move_num] += 1
             # print(f"Move: {move_num}, k3: {self.k3}")
             # print(f"Test: {test}")
-            # print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
-            self.universe.update_geometry()
+            print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
+            # self.universe.update_geometry()
 
             # if move_num > 0:
             #     self.universe.check_validity()
 
-        self.check_validity()
+        print(f"{test}")
+        self.universe.check_validity()
 
         end = time.time()
         print(f"Time: {end - start} \n")
-        self.universe.export_geometry(f"geometry_k0={k0}_k3={k3}_seed={seed}_N={N}")
+        # self.universe.export_geometry(f"geometry_k0={k0}_k3={k3}_seed={seed}_N={N}")
 
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
+    # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
+    
     simulation = Simulation(universe)
     simulation.save_process = False
+    simulation.save_final = False
     simulation.as_pickle = True
     simulation.start( 
-        k0=5, k3=1.7, sweeps=0, thermal_sweeps=50, k_steps=100000,
-        volfix_switch=1, target_volume=10000, target2_volume=0,
-        seed=0, outfile="test_run/output", validity_check=True,
+        k0=0, k3=0.72, sweeps=2, thermal_sweeps=5, k_steps=100000,
+        volfix_switch=0, target_volume=10000, target2_volume=0,
+        seed=0, outfile="saved_universes/test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
-    # simulation.universe.make_network_graph()
-    N3 = simulation.universe.tetrahedron_pool.size
-    N31 = simulation.universe.tetras_31.size
-    N22 = N3 - N31
-    print(f"N3: {N3}, N31: {N31}, N2: {N22}")
-    print("Done")
+    print(f"Expected N22/N31: {simulation.expected_N22_N31_with_thermal}")
+    print(f"Expected N22/N3: {simulation.expected_N22_N3_with_thermal}")
 
     # # seed = random.randint(0, 1000000)
     # seed = 1
-    # simulation.trial(k0=7, k3=2.3, seed=seed, N=100000)
+    # simulation.trial(k0=7, k3=2.1, seed=seed, N=100000)

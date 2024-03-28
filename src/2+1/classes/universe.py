@@ -19,6 +19,7 @@ import pickle
 import os
 import networkx as nx
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import gzip
 
 max_rec = 0x100000
@@ -65,6 +66,7 @@ class Universe:
 
         # Initialize the bags
         self.tetras_31 = Bag(Universe.Capacity.TETRAHEDRON)
+        self.tetras_22 = Bag(Universe.Capacity.TETRAHEDRON)
 
         self.vertex_neighbours = []
         self.triangle_neighbours = []
@@ -152,6 +154,8 @@ class Universe:
                     # Add to the bag and update the slice size
                     self.tetras_31.add(tetra.ID)
                     self.slice_sizes[tetra.get_vertices()[0].time] += 1
+                elif tetra.is_22():
+                    self.tetras_22.add(tetra.ID)
     
             # Check consistency of the number of tetrahedra
             line = int(infile.readline())
@@ -637,12 +641,6 @@ class Universe:
         # Get the 31 and 22 tetra neighbours
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
-        if not t31.is_31():
-            return False
-        if not t22.is_22():
-            return False
-        if not t31.check_neighbours_tetra(t22):
-            return False
 
         if self.debug_print:
             print(f"\nShifting t31: {t31.ID} and t22: {t22.ID}.")
@@ -683,9 +681,11 @@ class Universe:
 
         # Add to pool and bag
         self.tetrahedron_pool.occupy(tn31)
-        self.tetras_31.add(tn31.ID)
         self.tetrahedron_pool.occupy(tn22l)
         self.tetrahedron_pool.occupy(tn22r)
+        self.tetras_31.add(tn31.ID)
+        self.tetras_22.add(tn22l.ID)
+        self.tetras_22.add(tn22r.ID)
 
         # Update connectivity
         tn31.set_vertices(v0, v2, v4, v1)
@@ -710,8 +710,9 @@ class Universe:
 
         # Remove the original tetrahedra from the neighbours
         self.tetrahedron_pool.free(t31.ID)
-        self.tetras_31.remove(t31.ID)
         self.tetrahedron_pool.free(t22.ID)
+        self.tetras_31.remove(t31.ID)
+        self.tetras_22.remove(t22.ID)
 
         # Make sure the vertices are updated with the new 31 tetra
         tn31.get_vertices()[0].set_tetra(tn31)
@@ -741,16 +742,6 @@ class Universe:
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22l = self.tetrahedron_pool.get(tetra22l_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
-        if not t31.is_31():
-            return False
-        if not t22l.is_22():
-            return False
-        if not t22r.is_22():
-            return False
-        if not t31.check_neighbours_tetra(t22l):
-            return False
-        if not t31.check_neighbours_tetra(t22r):
-            return False
         
         if self.debug_print:
             print(f"\niShifting t31: {t31.ID}, t22l: {t22l.ID} and t22r: {t22r.ID}.")
@@ -788,8 +779,9 @@ class Universe:
         tn31 = Tetrahedron()
         tn22 = Tetrahedron()
         self.tetrahedron_pool.occupy(tn31)
-        self.tetras_31.add(tn31.ID)
         self.tetrahedron_pool.occupy(tn22)
+        self.tetras_31.add(tn31.ID)
+        self.tetras_22.add(tn22.ID)
 
         # Update connectivity
         tn31.set_vertices(v0, v2, v4, v3)
@@ -809,9 +801,11 @@ class Universe:
 
         # Free the old tetrahedra
         self.tetrahedron_pool.free(t31.ID)
-        self.tetras_31.remove(t31.ID)
         self.tetrahedron_pool.free(t22l.ID)
         self.tetrahedron_pool.free(t22r.ID)
+        self.tetras_31.remove(t31.ID)
+        self.tetras_22.remove(t22l.ID)
+        self.tetras_22.remove(t22r.ID)
 
         time = tn31.get_vertices()[0].time
         self.slab_sizes[time] -= 1
@@ -844,12 +838,6 @@ class Universe:
         t13 = self.tetrahedron_pool.get(tetra13_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
         t31 = t13.get_tetras()[0]
-        if not t13.is_13():
-            return False
-        if not t22.is_22():
-            return False
-        if not t13.check_neighbours_tetra(t22):
-            return False
 
         if self.debug_print:
             print(f"\nShifting t13: {t13.ID} and t22: {t22.ID}.")
@@ -890,6 +878,8 @@ class Universe:
         self.tetrahedron_pool.occupy(tn13)
         self.tetrahedron_pool.occupy(tn22l)
         self.tetrahedron_pool.occupy(tn22r)
+        self.tetras_22.add(tn22l.ID)
+        self.tetras_22.add(tn22r.ID)
 
         # Update connectivity
         tn13.set_vertices(v1, v0, v2, v4)
@@ -916,6 +906,7 @@ class Universe:
         # Free the old tetrahedra
         self.tetrahedron_pool.free(t13.ID)
         self.tetrahedron_pool.free(t22.ID)
+        self.tetras_22.remove(t22.ID)
 
         if self.debug_print:
             print(f"Shifted, created tn13: {tn13.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
@@ -942,18 +933,6 @@ class Universe:
         t22l = self.tetrahedron_pool.get(tetra22l_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
         t31 = t13.get_tetras()[0]
-        if not t13.is_13():
-            return False
-        if not t22l.is_22():
-            return False
-        if not t22r.is_22():
-            return False
-        if not t13.check_neighbours_tetra(t22l):
-            return False
-        if not t13.check_neighbours_tetra(t22r):
-            return False
-        if not t31.is_31():
-            return False
         
         if self.debug_print:
             print(f"\niShifting t13: {t13.ID} and t22l: {t22l.ID} and t22r: {t22r.ID}.")
@@ -992,6 +971,7 @@ class Universe:
         tn22 = Tetrahedron()
         self.tetrahedron_pool.occupy(tn13)
         self.tetrahedron_pool.occupy(tn22)
+        self.tetras_22.add(tn22.ID)
 
         # Update connectivity
         tn13.set_vertices(v3, v0, v2, v4)
@@ -1014,6 +994,8 @@ class Universe:
         self.tetrahedron_pool.free(t13.ID)
         self.tetrahedron_pool.free(t22l.ID)
         self.tetrahedron_pool.free(t22r.ID)
+        self.tetras_22.remove(t22l.ID)
+        self.tetras_22.remove(t22r.ID)
 
         time = tn13.get_vertices()[3].time
         self.slab_sizes[time] -= 1
@@ -1022,7 +1004,7 @@ class Universe:
             print(f"iShifted, created tn13: {tn13.ID}, tn22: {tn22.ID}.")
    
         return True
-
+        
     def update_vertices(self):
         """
         Update the vertices of the Universe.
@@ -1358,17 +1340,28 @@ class Universe:
 
         return True
 
-    def make_network_graph(self):
+    def make_network_graph(self, save: bool = False, filename: str = f"network_graph.png"):
         """
         Plots a network graph of the triangulation.
         """
         self.log()
         
+        node_colors_dict = {0: 'gold', 1: 'indigo', 2: 'cyan'}
+
         # Create the network graph
         G = nx.Graph()
         for vertex in self.vertex_pool.get_objects():
-            G.add_node(vertex.ID)
+            G.add_node(
+                vertex.ID,
+                color=node_colors_dict[vertex.time],
+                time=vertex.time,
+                tetrahedron=vertex.tetra.ID,
+                degree=len(self.vertex_neighbours[vertex.ID]),
+                cnum=vertex.cnum,
+                scnum=vertex.scnum
+                )
 
+        for vertex in self.vertex_pool.get_objects():
             for neighbour_vertex in self.vertex_neighbours[vertex.ID]:
                 neighbour_vertex = self.vertex_pool.get(neighbour_vertex)
 
@@ -1380,8 +1373,23 @@ class Universe:
         # Draw the network graph
         pos = nx.spring_layout(G)
         edges = G.edges()
-        colors = [G[u][v]['color'] for u,v in edges]
-        nx.draw(G, pos, with_labels=False, node_size=20, node_color='black', edge_color=colors, width=0.5)
+        edge_colors = [G.edges[edge]['color'] for edge in edges]
+        node_colors = [G.nodes[node]['color'] for node in G.nodes()]
+        plt.figure(figsize=(10, 7))
+        nx.draw_networkx_nodes(G, pos, node_size=20, node_color=node_colors, edgecolors='black', alpha=0.7)
+        nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=1, alpha=0.7)
+
+        # Add legend for nodes and edges
+        edge_elements = [Line2D([0], [0], color='b', lw=1, label='Spacelike'),
+                        Line2D([0], [0], color='r', lw=1, label='Timelike')]
+        node_elements = [Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=10, label=f't = {time}') for time, color in node_colors_dict.items()]
+
+        plt.legend(handles=node_elements + edge_elements)
+
+        if save:
+            plt.savefig(filename + 'png', dpi=400)
+            # Export as graph for gephi
+            nx.write_gexf(G, f'{filename}.gexf')
         plt.show()
 
     def log(self):
