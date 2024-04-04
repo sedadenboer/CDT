@@ -68,8 +68,8 @@ class Universe:
         self.tetras_31 = Bag(Universe.Capacity.TETRAHEDRON)
         self.tetras_22 = Bag(Universe.Capacity.TETRAHEDRON)
 
-        self.vertex_neighbours = []
-        self.triangle_neighbours = []
+        self.vertex_neighbours = {}
+        self.triangle_neighbours = {}
 
         # If the file is a pickle file, load the universe from the pickle file
         if geometry_infilename.endswith('.pkl.gz'):
@@ -1017,47 +1017,6 @@ class Universe:
 
         # Clear the vertex neighbours
         self.vertex_neighbours.clear()
-
-        # vertex_neighbours = [[] for _ in range(max_vertex + 1)]
-
-        # # Update the vertex neighbours
-        # for v in self.vertex_pool.get_objects():
-        #     nbr = []
-        #     current_tetra = v.get_tetra()
-        #     # print(f"Current tetra: {current_tetra.ID}")
-        #     current_tetra_list = [current_tetra]
-        #     next_tetra_list = []
-        #     done_tetra_list = []
-
-        #     # Iterate until all tetras are checked
-        #     while current_tetra_list:
-        #         # Get the current tetra to check and its neighbours
-        #         for current_tetra_check in current_tetra_list:
-        #             # print(f"Current tetra check: {current_tetra_check.ID}")
-        #             # print(f"neighbours: {current_tetra_check.get_tetras()}")
-        #             for tetra_neighbour in current_tetra_check.get_tetras():
-        #                 # If the neighbour does not have the current vertex, continue
-        #                 if not tetra_neighbour.has_vertex(v):
-        #                     continue
-                    
-        #             # Mark the current tetrahedron as done
-        #             if tetra_neighbour not in done_tetra_list:
-        #                 done_tetra_list.append(tetra_neighbour)
-        #                 next_tetra_list.append(tetra_neighbour)
-
-        #         # Prepare current and next tetra lists for next iteration
-        #         current_tetra_list = next_tetra_list
-        #         next_tetra_list = []
-
-        #     # Get the vertices of the done tetras
-        #     for done_tetra in done_tetra_list:
-        #         for vertex_done_tetra in done_tetra.get_vertices():
-        #             # Add the vertex to the neighbours list if it is not already there
-        #             if vertex_done_tetra not in nbr and vertex_done_tetra != v:
-        #                 nbr.append(vertex_done_tetra)
-
-        #     # Add the neighbours to the vertex neighbours list
-        #     vertex_neighbours[v.ID] = nbr
         
         # First make lists for each vertex 
         tetras_containing_vertex = {}
@@ -1107,17 +1066,25 @@ class Universe:
         # Get tetras31 
         tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.used_indices]
 
-        for t in tetras31_objs:
+        for tetra in tetras31_objs:
             # Create a new triangle
             triangle = Triangle()
             self.triangle_pool.occupy(triangle)
             
             # Triangle is defined by base vertices of the tetrahedron
-            triangle.set_vertices(t.get_vertices()[0], t.get_vertices()[1], t.get_vertices()[2])
-            
+            triangle.set_vertices(tetra.get_vertices()[0], tetra.get_vertices()[1], tetra.get_vertices()[2])
+            triangle.set_half_edges(tetra.get_half_edges()[0], tetra.get_half_edges()[1], tetra.get_half_edges()[2])
+
             # Set the triangle of the tetrahedron
-            for he in t.get_half_edges():
+            for he in tetra.get_half_edges():
                 he.set_triangle(triangle)
+        
+        # for triangle in self.triangle_pool.get_objects():
+        #     triangle.set_triangle_neighbours(triangle.get_half_edges()[0].get_adjacent().get_triangle(),
+        #                                      triangle.get_half_edges()[1].get_adjacent().get_triangle(),
+        #                                      triangle.get_half_edges()[2].get_adjacent().get_triangle())
+
+        #     self.triangle_neighbours[triangle.ID] = triangle.get_triangle_neighbours()
 
     def update_halfedges(self):
         """
@@ -1130,31 +1097,28 @@ class Universe:
         tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.used_indices]
 
         # Create halfedges for each tetrahedron
-        for t in tetras31_objs:
+        for tetra in tetras31_objs:
             halfedge_triples = []
 
             # Three halfedges for each tetrahedron
             for i in range(self.Constants.N_HALFEDGES_TETRA):
                 he = HalfEdge()
                 self.halfedge_pool.occupy(he)
-                he.set_vertices(t.get_vertices()[i], t.get_vertices()[(i + 1) % 3])
-                he.set_tetra(t)
+
+                # Set the vertices and the tetrahedron of the halfedges
+                he.set_vertices(tetra.get_vertices()[i], tetra.get_vertices()[(i + 1) % 3])
+                he.set_tetra(tetra)
                 halfedge_triples.append(he)
 
-            t.set_half_edges(halfedge_triples[0], halfedge_triples[1], halfedge_triples[2])
+            tetra.set_half_edges(halfedge_triples[0], halfedge_triples[1], halfedge_triples[2])
 
             # Connect the halfedges in a circular list
             for i in range(self.Constants.N_HALFEDGES_TETRA):
                 halfedge_triples[i].set_next(halfedge_triples[(i + 1) % 3])
                 halfedge_triples[i].set_previous(halfedge_triples[(i + 2) % 3])
         
-        # # Set the adjacent opposite halfedges
-        # for t in tetras31_objs:
-        #     opposite = t.get_tetras()[0]
-        #     for he in t.get_half_edges():
-        #         for he_opposite in opposite.get_half_edges():
-        #             if he.get_vertices() == he_opposite.get_vertices()[::-1] or he.get_vertices() == he_opposite.get_vertices():
-        #                 he.set_adjacent(he_opposite)
+        # TODO: Set the adjacent opposite halfedges
+
                             
     def get_total_size(self) -> int:
         """
@@ -1414,10 +1378,10 @@ class Universe:
 if __name__ == "__main__":
     v = Universe(geometry_infilename="saved_universes/test_run/output_thermal_1.pkl.gz")
     u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
-    v.update_geometry()
-    v.check_validity()
-    v.log()
-    v.make_network_graph()
+    u.update_geometry()
+    u.check_validity()
+    u.log()
+    # v.make_network_graph()
 
     # # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
     # # Check delete and add move

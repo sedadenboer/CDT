@@ -37,7 +37,6 @@ class Simulation:
         self.target2_volume = 0
         self.rng = random.Random(0)
         self.epsilon = 0.00005
-        # self.epsilon = 0.002
         self.measuring = False
         self.observables_3d = []
         self.observables_2d = []
@@ -53,6 +52,16 @@ class Simulation:
         self.save_final = False
         self.saving_interval = 10
         self.as_pickle = True
+
+        # To save acceptance probabilities
+        self.add_ap = []
+        self.delete_ap = []
+        self.flip_ap = []
+        self.shift_ap = []
+        self.ishift_ap = []
+
+        # To save acceptance probabilities and rates
+        self.succes_rates = {1: [], 2: [], 3: [], 4: [], 5: []}
 
     def start(self, k0: int, k3: int,
                     sweeps: int, thermal_sweeps: int, k_steps: int,
@@ -104,11 +113,20 @@ class Simulation:
         for i in range(1, thermal_sweeps + 1):
             # Get the current state of the universe and print it
             total_2v = sum(self.universe.slice_sizes)
+            n0 = self.universe.vertex_pool.get_number_occupied()
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
             n22 = self.universe.tetras_22.get_number_occupied()
-            print(f"\nThermal i: {i} \t N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
+            print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
 
+            # Save acceptance probabilities
+            add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
+            self.add_ap.append(add_ap_vals)
+            self.delete_ap.append(delete_ap_vals)
+            self.flip_ap.append(flip_ap_vals)
+            self.shift_ap.append(shift_ap_vals)
+            self.ishift_ap.append(ishift_ap_vals)
+        
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps)
             self.tune()
@@ -141,11 +159,20 @@ class Simulation:
             for i in range(1, sweeps + 1):
                 # Get the current state of the universe and print it
                 total_2v = sum(self.universe.slice_sizes)
+                n0 = self.universe.vertex_pool.get_number_occupied()
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
                 avg_2v = total_2v / self.universe.n_slices
-                print(f"Main i: {i} \t target: {self.target_volume} \t target2d: {self.target2_volume} \t CURRENT N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, avgslice: {avg_2v}\n")
+                print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} k0: {self.k0} k3: {self.k3} \t CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
+
+                # Save acceptance probabilities
+                add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
+                self.add_ap.append(add_ap_vals)
+                self.delete_ap.append(delete_ap_vals)
+                self.flip_ap.append(flip_ap_vals)
+                self.shift_ap.append(shift_ap_vals)
+                self.ishift_ap.append(ishift_ap_vals)
 
                 # Perform sweeps
                 self.perform_sweep(k_steps)
@@ -206,11 +233,12 @@ class Simulation:
 
         # Compute <N22/N3(1)> variable
         if sweeps > 0:
+            # Remove thermal phase
             self.expected_N22_N31 = sum(self.N22_N31_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
             self.expected_N22_N3 = sum(self.N22_N3_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
-
-        self.expected_N22_N31_with_thermal = sum(self.N22_N31_ratio) / ((thermal_sweeps + sweeps) * k_steps)
-        self.expected_N22_N3_with_thermal = sum(self.N22_N3_ratio) / ((thermal_sweeps + sweeps) * k_steps)
+        else:
+            self.expected_N22_N31 = sum(self.N22_N31_ratio) / (thermal_sweeps * k_steps)
+            self.expected_N22_N3 = sum(self.N22_N3_ratio) / (thermal_sweeps * k_steps)
 
         # Export the final geometry
         if self.save_final:
@@ -224,7 +252,8 @@ class Simulation:
             int: The move number. 
             1 for add, 2 for delete, 3 for flip, 4 for shift, 5 for inverse shift.
             Negative numbers indicate failed moves.
-        """
+        """        
+        # Calculate cumulative frequencies
         cum_freqs = np.cumsum(self.move_freqs)
         freq_total = sum(self.move_freqs)
 
@@ -255,28 +284,15 @@ class Simulation:
                 else:
                     return 5 if self.move_ishift_d() else -5
                 
-    def perform_sweep(self, n: int) -> Tuple[List[int], List[int]]:
+    def perform_sweep(self, n: int):
         """
         Perform a sweep of the simulation.
 
         Args:
             n (int): The number of moves to perform.
-
-        Returns:
-            List[int]: The number of moves performed for each move type.
         """
-        gathered_counts = []
-        gathered_failed_counts = []
-        add_moves = 0
-        delete_moves = 0
-        flip_moves = 0
-        shift_moves = 0
-        inverse_shift_moves = 0
-        failed_add_moves = 0
-        failed_delete_moves = 0
-        failed_flip_moves = 0
-        failed_shift_moves = 0
-        failed_inverse_shift_moves = 0
+        gathered_counts = [0, 0, 0, 0, 0]
+        gathered_failed_counts = [0, 0, 0, 0, 0]
         
         # Perform n moves
         for _ in range(n):
@@ -285,27 +301,9 @@ class Simulation:
 
             # Update the move counters
             if move_num > 0:
-                if move == 1:
-                    add_moves += 1
-                elif move == 2:
-                    delete_moves += 1
-                elif move == 3:
-                    flip_moves += 1
-                elif move == 4:
-                    shift_moves += 1
-                elif move == 5:
-                    inverse_shift_moves += 1
+                gathered_counts[move - 1] += 1
             else:
-                if move == 1:
-                    failed_add_moves += 1
-                elif move == 2:
-                    failed_delete_moves += 1
-                elif move == 3:
-                    failed_flip_moves += 1
-                elif move == 4:
-                    failed_shift_moves += 1
-                elif move == 5:
-                    failed_inverse_shift_moves += 1
+                gathered_failed_counts[move - 1] += 1
 
             # Append the sizes of N31, N3 and N22
             n31 = self.universe.tetras_31.get_number_occupied()
@@ -316,14 +314,8 @@ class Simulation:
             self.N22_N31_ratio.append(n22 / n31)
             self.N22_N3_ratio.append(n22 / n3)
 
-        gathered_counts = [add_moves, delete_moves, flip_moves, shift_moves, inverse_shift_moves]
-        gathered_failed_counts = [failed_add_moves, failed_delete_moves, failed_flip_moves, failed_shift_moves, failed_inverse_shift_moves]
-
-        # Print the success rate for each move
-        print(f"Add: {add_moves} \t Delete: {delete_moves} \t Flip: {flip_moves} \t Shift: {shift_moves} \t Inverse Shift: {inverse_shift_moves}")
-        print(f"Failed Add: {failed_add_moves} \t Failed Delete: {failed_delete_moves} \t Failed Flip: {failed_flip_moves} \t Failed Shift: {failed_shift_moves} \t Failed Inverse Shift: {failed_inverse_shift_moves}")
-
-        return gathered_counts, gathered_failed_counts
+        for i, count in enumerate(gathered_counts):
+            self.succes_rates[i + 1].append(count / (gathered_failed_counts[i] + count))
     
     def mcmc_check(self, acceptance_probability: float) -> bool:
         """
@@ -335,10 +327,6 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        # Get the minimum between 1 and AP and generate random uniform number
-        # min_acceptance_ratio = min(1, acceptance_probability)
-        # random_number = self.rng.random()
-
         # Reject
         if acceptance_probability < 1:
             random_number = self.rng.random()
@@ -361,7 +349,6 @@ class Simulation:
         n0 = self.universe.vertex_pool.get_number_occupied()
         vol_switch = self.volfix_switch
         acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
-        # print(f"Add AP: {acceptance_probability}")
 
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 0:
@@ -394,7 +381,7 @@ class Simulation:
         n0 = self.universe.vertex_pool.get_number_occupied()
         vol_switch = self.volfix_switch
         acceptance_probability = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
-        # print(f"Delete AP: {acceptance_probability}")
+     
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 0:
             if self.target_volume > 0:
@@ -461,7 +448,7 @@ class Simulation:
         acceptance_probability = np.exp(-self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-        # print(f"Shift u AP: {acceptance_probability}")
+     
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
@@ -533,7 +520,7 @@ class Simulation:
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-        # print(f"Ishift AP: {acceptance_probability}")
+       
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
@@ -584,12 +571,12 @@ class Simulation:
         acceptance_probability = np.exp(self.k3)
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
         vol_switch = self.volfix_switch
-        # print(f"Ishift d AP: {acceptance_probability}")
+       
         # If the target volume is specified, adjust AP according to the volume switch
         if vol_switch == 1:
             if self.target_volume > 0:
                 acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-            
+
         # Perform MCMC check for acceptance
         if not self.mcmc_check(acceptance_probability):
             return False
@@ -652,10 +639,6 @@ class Simulation:
             fixvolume = self.universe.tetras_31.get_number_occupied()
         else:
             fixvolume = self.universe.tetrahedron_pool.get_number_occupied()
-
-        # print(f"border far: {border_far}", f"border close: {border_close}", f"border vclose: {border_vclose}", f"border vvclose: {border_vvclose}")
-        # print(f"!New fixvolume!: {fixvolume}, target volume: {self.target_volume}")
-        # print(f"target volume - fixvolume: {self.target_volume - fixvolume}")
             
         # Adjust k3 based on the difference between target volume and fixvolume
         if (self.target_volume - fixvolume) > border_far:
@@ -679,6 +662,39 @@ class Simulation:
         # Append the k3 value to the list
         self.k3_values.append(self.k3)
 
+    def get_acceptance_probabilities(self):
+        """
+        Calculates the acceptance probabilities for the different moves.
+        """
+        # Get relevant variables 
+        n31 = self.universe.tetras_31.get_number_occupied()
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        n0 = self.universe.vertex_pool.get_number_occupied()
+        vol_switch = self.volfix_switch
+        add_ap = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
+        delete_ap = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
+        flip_ap = 1
+        shift_ap = np.exp(-self.k3)
+        ishift_ap = np.exp(self.k3)
+
+        # If the target volume is specified, adjust AP according to the volume switch
+        if vol_switch == 0:
+            if self.target_volume > 0:
+                add_ap *= np.exp(
+                    4 * self.epsilon * (self.target_volume - n31 - 1))
+                delete_ap *= np.exp(
+                    -4 * self.epsilon * (self.target_volume - n31 - 1))
+        else:
+            if self.target_volume > 0:
+                add_ap *= np.exp(
+                    8 * self.epsilon * (self.target_volume - n3 - 2))
+                delete_ap *= np.exp(
+                    -8 * self.epsilon * (self.target_volume - n3 - 2))
+                shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+                ishift_ap *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+        
+        return add_ap, delete_ap, flip_ap, shift_ap, ishift_ap
+        
     def attempt_simple(self):
         # Generate a random number to select a move pair
         move = self.rng.randint(0, 1)
