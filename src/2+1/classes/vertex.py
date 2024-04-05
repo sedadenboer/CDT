@@ -67,7 +67,6 @@ class Vertex:
 
         # Dictionary to keep track of triangles that have been checked
         done: Dict[Vertex, bool] = {}
-        
         # List of triangles to check
         current: List[Tetrahedron] = [t]
         # List of triangles to check next

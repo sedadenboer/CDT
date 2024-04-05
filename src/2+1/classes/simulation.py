@@ -11,7 +11,7 @@ import random
 import numpy as np
 import time
 from universe import Universe
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, List, Tuple, Dict
 if TYPE_CHECKING:
     from universe import Universe
 
@@ -29,42 +29,32 @@ class Simulation:
         N_VERTICES_TRIANGLE = 3
 
     def __init__(self, universe: Universe):
-        self.universe = universe 
-        self.k0 = 0
-        self.k3 = 0
-        self.volfix_switch = 0
-        self.target_volume = 0
-        self.target2_volume = 0
-        self.rng = random.Random(0)
-        self.epsilon = 0.00005
-        self.measuring = False
-        self.observables_3d = []
-        self.observables_2d = []
-        self.move_freqs = (1, 1, 1)
-        self.k3_values = []
-        self.N31_sizes = []
-        self.N22_sizes = []
-        self.N22_N31_ratio = []
-        self.N22_N3_ratio = []
-        self.total_tetrahedra = []
-        self.total_vertices = []
-        self.save_process = False
-        self.save_final = False
-        self.saving_interval = 10
-        self.as_pickle = True
-
-        # To save acceptance probabilities
-        self.add_ap = []
-        self.delete_ap = []
-        self.flip_ap = []
-        self.shift_ap = []
-        self.ishift_ap = []
-
-        # To save acceptance probabilities and rates
-        self.succes_rates = {1: [], 2: [], 3: [], 4: [], 5: []}
+        self.universe: Universe = universe 
+        self.k0: int = 0
+        self.k3: int = 0
+        self.volfix_switch: int = 0
+        self.target_volume: int = 0
+        self.target2_volume: int = 0
+        self.rng: random.Random = random.Random(0)
+        self.epsilon: float = 0.00005
+        self.measuring: bool = True
+        self.move_freqs: Tuple[int, int, int] = (1, 1, 1)
+        self.k3_values: List[float] = []
+        self.total_vertices: List[int] = []
+        self.total_tetrahedra: List[int] = []
+        self.total_31_tetrahedra: List[int] = []
+        self.total_22_tetrahedra: List[int] = []
+        self.ratio_22_31: List[float] = []
+        self.ratio_22_3: List[float] = []
+        self.save_process: bool = False
+        self.save_final: bool = False
+        self.saving_interval: int = 10
+        self.as_pickle: bool = True
+        self.acceptance_ratios: Dict[int, List[float]] = {1: [], 2: [], 3: [], 4: [], 5: []}
+        self.succes_rates: Dict[int, List[float]] = {1: [], 2: [], 3: [], 4: [], 5: []}
 
     def start(self, k0: int, k3: int,
-                    sweeps: int, thermal_sweeps: int, k_steps: int,
+                    thermal_sweeps: int, sweeps: int, k_steps: int,
                     volfix_switch: int, target_volume: int, target2_volume: int,
                     seed: int, outfile: str, validity_check: bool,
                     v1: int, v2: int, v3: int):
@@ -74,8 +64,8 @@ class Simulation:
         Args:
             k0 (int): The k0 parameter.
             k3 (int): The k3 parameter.
-            sweeps (int): The number of sweeps to perform.
             thermal_sweeps (int): The number of thermal sweeps to perform.
+            sweeps (int): The number of main sweeps to perform.
             k_steps (int): The number of steps to perform in each sweep.
             volfix_switch (int): The volume fix switch. 0 for (3,1)-tetrahedra, 1 for all tetrahedra.
             target_volume (int): The target volume of the simulation.
@@ -94,14 +84,7 @@ class Simulation:
         self.target_volume = target_volume
         self.target2_volume = target2_volume
         self.rng.seed(seed)
-        self.measuring = True
         self.saving_interval = thermal_sweeps
-
-        # # Clear observables
-        # for o in self.observables_3d:
-        #     o.clear()
-        # for o in self.observables_2d:
-        #     o.clear()
         
         # Thermal sweeps
         print("========================================\n")
@@ -117,35 +100,34 @@ class Simulation:
             n31 = self.universe.tetras_31.get_number_occupied()
             n3 = self.universe.tetrahedron_pool.get_number_occupied()
             n22 = self.universe.tetras_22.get_number_occupied()
+            self.total_vertices.append(n0)
+            self.total_tetrahedra.append(n3)
+            self.total_31_tetrahedra.append(n31)
+            self.total_22_tetrahedra.append(n22)
+            self.ratio_22_31.append(n22 / n31)
+            self.ratio_22_3.append(n22 / n3)
             print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
 
             # Save acceptance probabilities
             add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
-            self.add_ap.append(add_ap_vals)
-            self.delete_ap.append(delete_ap_vals)
-            self.flip_ap.append(flip_ap_vals)
-            self.shift_ap.append(shift_ap_vals)
-            self.ishift_ap.append(ishift_ap_vals)
+            self.acceptance_ratios[1].append(add_ap_vals)
+            self.acceptance_ratios[2].append(delete_ap_vals)
+            self.acceptance_ratios[3].append(flip_ap_vals)
+            self.acceptance_ratios[4].append(shift_ap_vals)
+            self.acceptance_ratios[5].append(ishift_ap_vals)
         
             # Perform sweeps and tune the k3 parameter
             self.perform_sweep(k_steps)
             self.tune()
-
-            self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
-            self.total_tetrahedra.append(n3)
+            self.prepare()
 
             # Export the geometry every 10% of the thermal sweeps
             if self.save_process:
                 if i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
-                
-            # # Update geometry and measure observables related to 3D structures
-            # self.prepare()
-            # for o in self.observables_3d:
-            #     o.measure(self.universe)
 
         if validity_check:
-            # self.universe.log()
+            self.universe.log()
             self.universe.check_validity()
 
         if sweeps > 0:
@@ -163,23 +145,24 @@ class Simulation:
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
-                avg_2v = total_2v / self.universe.n_slices
+                self.total_vertices.append(n0)
+                self.total_tetrahedra.append(n3)
+                self.total_31_tetrahedra.append(n31)
+                self.total_22_tetrahedra.append(n22)
+                self.ratio_22_31.append(n22 / n31)
+                self.ratio_22_3.append(n22 / n3)
                 print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} k0: {self.k0} k3: {self.k3} \t CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
 
                 # Save acceptance probabilities
                 add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
-                self.add_ap.append(add_ap_vals)
-                self.delete_ap.append(delete_ap_vals)
-                self.flip_ap.append(flip_ap_vals)
-                self.shift_ap.append(shift_ap_vals)
-                self.ishift_ap.append(ishift_ap_vals)
+                self.acceptance_ratios[1].append(add_ap_vals)
+                self.acceptance_ratios[2].append(delete_ap_vals)
+                self.acceptance_ratios[3].append(flip_ap_vals)
+                self.acceptance_ratios[4].append(shift_ap_vals)
+                self.acceptance_ratios[5].append(ishift_ap_vals)
 
                 # Perform sweeps
                 self.perform_sweep(k_steps)
-                
-                # Save sizes
-                self.total_vertices.append(self.universe.vertex_pool.get_number_occupied())
-                self.total_tetrahedra.append(n3)
 
                 # Export the geometry every 10% of the main sweeps
                 if self.save_process:
@@ -187,7 +170,7 @@ class Simulation:
                         self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
                 
                 # Check if there are any 3D observables to be measured
-                if len(self.observables_3d) > 0: 
+                if self.measuring: 
                     # Remove if volume should fluctuate during measurements
                     vol_switch = self.volfix_switch
 
@@ -200,12 +183,7 @@ class Simulation:
                         while compare != target_volume:
                             self.attempt_move()
                             # Update the compare variable based on the volume switch
-                            compare = self.universe.tetras31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
-
-                    # # Update geometry and measure observables related to 3D structures
-                    # self.prepare()
-                    # for o in self.observables_3d:
-                    #     o.measure(self.universe)
+                            compare = self.universe.tetras_31.get_number_occupied() if vol_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
                 
                 # Check if there's a 2D target volume specified for the timeslices
                 if target2_volume > 0:
@@ -221,11 +199,8 @@ class Simulation:
                             if s == target2_volume:
                                 hit = True
                                 break
-                    
-                    # # Update geometry and measure observables related to 2D structures
-                    # self.prepare()
-                    # for o in self.observables_2d:
-                    #     o.measure(self.universe)
+                
+                self.prepare()
             
             if validity_check:
                 self.universe.log()
@@ -234,11 +209,11 @@ class Simulation:
         # Compute <N22/N3(1)> variable
         if sweeps > 0:
             # Remove thermal phase
-            self.expected_N22_N31 = sum(self.N22_N31_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
-            self.expected_N22_N3 = sum(self.N22_N3_ratio[(thermal_sweeps * k_steps):]) / (sweeps * k_steps)
+            self.expected_N22_N31 = sum(self.ratio_22_31[thermal_sweeps:]) / sweeps
+            self.expected_N22_N3 = sum(self.ratio_22_3[thermal_sweeps:]) / sweeps
         else:
-            self.expected_N22_N31 = sum(self.N22_N31_ratio) / (thermal_sweeps * k_steps)
-            self.expected_N22_N3 = sum(self.N22_N3_ratio) / (thermal_sweeps * k_steps)
+            self.expected_N22_N31 = sum(self.ratio_22_31) / thermal_sweeps
+            self.expected_N22_N3 = sum(self.ratio_22_3) / thermal_sweeps
 
         # Export the final geometry
         if self.save_final:
@@ -305,15 +280,7 @@ class Simulation:
             else:
                 gathered_failed_counts[move - 1] += 1
 
-            # Append the sizes of N31, N3 and N22
-            n31 = self.universe.tetras_31.get_number_occupied()
-            n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            n22 = self.universe.tetras_22.get_number_occupied()
-            self.N31_sizes.append(n31)
-            self.N22_sizes.append(n22)
-            self.N22_N31_ratio.append(n22 / n31)
-            self.N22_N3_ratio.append(n22 / n3)
-
+        # Calculate the success rates and save them
         for i, count in enumerate(gathered_counts):
             self.succes_rates[i + 1].append(count / (gathered_failed_counts[i] + count))
     
@@ -746,14 +713,10 @@ if __name__ == "__main__":
     simulation.save_final = False
     simulation.as_pickle = True
     simulation.start( 
-        k0=0, k3=0.72, sweeps=2, thermal_sweeps=5, k_steps=100000,
+        k0=0, k3=0.72, thermal_sweeps=5, sweeps=2, k_steps=100000,
         volfix_switch=0, target_volume=10000, target2_volume=0,
         seed=0, outfile="saved_universes/test_run/output", validity_check=True,
         v1=1, v2=1, v3=1
     )
     print(f"Expected N22/N31: {simulation.expected_N22_N31_with_thermal}")
     print(f"Expected N22/N3: {simulation.expected_N22_N3_with_thermal}")
-
-    # # seed = random.randint(0, 1000000)
-    # seed = 1
-    # simulation.trial(k0=7, k3=2.1, seed=seed, N=100000)

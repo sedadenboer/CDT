@@ -199,7 +199,7 @@ class Tetrahedron:
         Returns:
             bool: True if the tetrahedron has the given vertex, False otherwise.
         """
-        return v in self.vs
+        return v in set(self.vs)
     
     def check_neighbours_tetra(self, t: Tetrahedron) -> bool:
         """
@@ -211,7 +211,7 @@ class Tetrahedron:
         Returns:
             bool: True if the given tetrahedron is a neighbour of the tetrahedron, False otherwise.
         """
-        return t in self.tnbr
+        return t in set(self.tnbr)
     
     def get_tetra_opposite(self, v: Vertex) -> Tetrahedron:
         """
@@ -289,8 +289,12 @@ class Tetrahedron:
         Args:
             t (Tetrahedron): The tetrahedron to remove.
         """
-        if t in self.tnbr:
-            self.tnbr.remove(t)
+        for i, tn in enumerate(self.tnbr):
+            if tn == t:
+                index_to_remove = i
+        
+        self.tnbr.pop(index_to_remove)
+        
 
     def log(self):
         """

@@ -1,6 +1,6 @@
 import random
 import numpy as np
-from typing import Optional, Set
+from typing import Optional, List
 
 
 class Bag:
@@ -21,7 +21,6 @@ class Bag:
         self.pool_capacity = pool_capacity
         self.elements = np.full(pool_capacity, self.EMPTY, dtype=int)
         self.indices = np.full(pool_capacity, self.EMPTY, dtype=int)
-        self.used_indices: Set[int] = set()
         self.size = 0
 
     def add(self, pool_index: int):
@@ -39,7 +38,6 @@ class Bag:
         
         self.elements[self.size] = pool_index
         self.indices[pool_index] = self.size
-        self.used_indices.add(pool_index)
         self.size += 1
 
     def remove(self, pool_index: int):
@@ -65,8 +63,6 @@ class Bag:
         # Clear last_pool_index from Bag
         self.elements[self.size - 1] = self.EMPTY
         self.indices[pool_index] = self.EMPTY
-
-        self.used_indices.remove(pool_index)
         self.size -= 1
 
     def clear(self):
@@ -75,7 +71,6 @@ class Bag:
         """
         self.elements = np.full(self.pool_capacity, self.EMPTY, dtype=int)
         self.indices = np.full(self.pool_capacity, self.EMPTY, dtype=int)
-        self.used_indices.clear()
         self.size = 0
         
     def pick(self) -> Optional[int]:
@@ -85,13 +80,15 @@ class Bag:
         Returns:
             int: Random pool index from Bag.
         """
-        if self.size == 0:
+        if self.size <= 0:
             raise ValueError("Bag is empty.")
         elif self.size > 0:
-            return random.choice(list(self.used_indices))
-        
-        # Bag is empty
-        return None 
+            # Pick random element from Bag
+            random_element_id = self.elements[random.randint(0, self.size - 1)]
+            while random_element_id == self.EMPTY:
+                random_element_id = self.elements[random.randint(0, self.size - 1)]
+
+            return random_element_id
     
     def contains(self, pool_index: int) -> bool:
         """
@@ -110,20 +107,54 @@ class Bag:
 
     def get_number_occupied(self) -> int:
         """
+        Get number of occupied spaces in Bag.
+
         Returns:
             int: Number of occupied spaces in Bag.
         """
         return self.size
     
+    def get_used_indices(self) -> List[int]:
+        """
+        Gets the indices of the used objects in the Bag.
+
+        Returns:
+            List[int]: List of indices of used objects in Bag.
+        """
+        return np.where(self.indices != self.EMPTY)[0]
+    
     def log(self) -> None:
         """
         Print Bag.
         """
-        print("elements")
+        print(f"Bag size: {self.size}")
+        print("Elements:")
         for i in range(self.size):
             print(f"size index {i}: {self.elements[i]}")
 
+        print(self.elements)
+        print(self.indices)
+    
         print("--")
     
     def __str__(self) -> str:
         return str(self.elements)
+
+
+if __name__ == "__main__":
+    bag = Bag(5)
+    bag.log()
+    bag.add(0)
+    bag.add(1)
+    bag.add(2)
+    bag.add(3)
+    bag.add(4)
+    bag.log()
+    bag.remove(2)
+    bag.remove(0)
+    bag.log()
+    print(bag.contains(2))
+    print(bag.get_number_occupied())
+    print(bag.get_used_indices())
+    bag.clear()
+    bag.log()

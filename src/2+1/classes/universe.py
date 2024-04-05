@@ -6,7 +6,7 @@
 # Description: The Universe class that represents the current state of the triangulation.
 
 from __future__ import annotations
-from typing import Any, List
+from typing import Any, List, Dict
 from vertex import Vertex
 from halfedge import HalfEdge
 from triangle import Triangle
@@ -119,8 +119,8 @@ class Universe:
 
             # Calculate the number of time slices based on the maximum time
             self.n_slices = max_time + 1
-            self.slab_sizes = [0] * self.n_slices
-            self.slice_sizes = [0] * self.n_slices
+            self.slab_sizes = {i: 0 for i in range(self.n_slices)}
+            self.slice_sizes = {i: 0 for i in range(self.n_slices)}
 
             # Read the number of tetrahedra
             n3 = int(infile.readline()) 
@@ -1064,7 +1064,7 @@ class Universe:
         assert self.triangle_pool.get_number_occupied() == 0
         
         # Get tetras31 
-        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.used_indices]
+        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.get_used_indices()]
 
         for tetra in tetras31_objs:
             # Create a new triangle
@@ -1094,7 +1094,7 @@ class Universe:
         assert self.halfedge_pool.get_number_occupied() == 0
 
         # Get tetras31
-        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.used_indices]
+        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.get_used_indices()]
 
         # Create halfedges for each tetrahedron
         for tetra in tetras31_objs:
@@ -1118,8 +1118,7 @@ class Universe:
                 halfedge_triples[i].set_previous(halfedge_triples[(i + 2) % 3])
         
         # TODO: Set the adjacent opposite halfedges
-
-                            
+                    
     def get_total_size(self) -> int:
         """
         Get the total size of the triangulation.
@@ -1129,13 +1128,30 @@ class Universe:
         """
         return self.vertex_pool.get_number_occupied()
 
+    def get_curvature_profile(self) -> Dict[int, List[int]]:
+        """
+        Get the curvature profile of the Universe.
+
+        Returns:
+            Dict[int, List[int]]: Curvature profile of the Universe.
+        """
+        times = list(range(self.n_slices))
+
+        # Make a dict for each time slice with the vertices
+        scnums_per_slice = {t: [] for t in times}
+
+        for v in self.vertex_pool.get_objects():
+            scnums_per_slice[v.time].append(v.scnum)
+        
+        return scnums_per_slice
+
     def update_geometry(self):
         """
         Update the geometry of the Universe.
         """
         self.update_vertices()
-        self.update_halfedges()
-        self.update_triangles()
+        # self.update_halfedges()
+        # self.update_triangles()
 
     def has_duplicate_lists(self, list_of_lists: List[List[Any]]) -> bool:
         """
@@ -1271,12 +1287,9 @@ class Universe:
         """
         self.update_geometry()
 
-        directory = os.path.dirname(geometry_outfilename)
-        os.makedirs(directory, exist_ok=True)
-
         # Save as pickle 
         if as_pickle:
-            with gzip.open('saved_universes/' + geometry_outfilename + '.pkl.gz', 'wb') as file:
+            with gzip.open('saved_universes/' + geometry_outfilename + '.pkl.gz', 'wb', compresslevel=1) as file:
                 pickle.dump(self.__dict__, file, protocol=pickle.HIGHEST_PROTOCOL)
         else:
             # Save as text

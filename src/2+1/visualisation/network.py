@@ -263,35 +263,35 @@ def spectral_dimension(universe: Universe, diffusion_time: int = 1000, n_walkers
     """
     n_returned = 0
 
-    # # Start the random walkers
-    # for _ in range(n_walkers):
-    #     # Start the walker at a random tetrahedron in a dense region
-    #     walker = pick_from_max_spatial_volume(universe)
-    #     walker_id = walker.ID
-
-    #     # Perform the random walk
-    #     for _ in range(diffusion_time):
-    #         neighbours = walker.get_tetras()
-    #         walker = np.random.choice(neighbours)
-
-    #     # Check if the walker returned to the original tetrahedron
-    #     if walker.ID == walker_id:
-    #         n_returned += 1
-
     # Start the random walkers
     for _ in range(n_walkers):
-        # Start the walker at a random vertex and save it
-        walker = universe.vertex_pool.pick()
-        walker_i = walker
+        # Start the walker at a random tetrahedron in a dense region
+        walker = pick_from_max_spatial_volume(universe)
+        walker_id = walker.ID
 
         # Perform the random walk
         for _ in range(diffusion_time):
-            neighbours = universe.vertex_neighbours[walker]
+            neighbours = walker.get_tetras()
             walker = np.random.choice(neighbours)
 
-        # Check if the walker returned to the original vertex
-        if walker == walker_i:
+        # Check if the walker returned to the original tetrahedron
+        if walker.ID == walker_id:
             n_returned += 1
+
+    # # Start the random walkers
+    # for _ in range(n_walkers):
+    #     # Start the walker at a random vertex and save it
+    #     walker = universe.vertex_pool.pick()
+    #     walker_i = walker
+
+    #     # Perform the random walk
+    #     for _ in range(diffusion_time):
+    #         neighbours = universe.vertex_neighbours[walker]
+    #         walker = np.random.choice(neighbours)
+
+    #     # Check if the walker returned to the original vertex
+    #     if walker == walker_i:
+    #         n_returned += 1
     
     # Calculate the spectral dimension
     return_probability = np.float64(n_returned) / np.float64(n_walkers)

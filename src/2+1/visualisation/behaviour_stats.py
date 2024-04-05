@@ -353,7 +353,7 @@ def acceptance_worker(chain_num: int, geometry_infilename: str, strictness: int,
         v3=1
     )
 
-    return simulation.add_ap, simulation.delete_ap, simulation.flip_ap, simulation.shift_ap, simulation.ishift_ap, simulation.succes_rates[1], simulation.succes_rates[2], simulation.succes_rates[3], simulation.succes_rates[4], simulation.succes_rates[5]
+    return simulation.acceptance_ratios[1], simulation.acceptance_ratios[2], simulation.acceptance_ratios[3], simulation.acceptance_ratios[4], simulation.acceptance_ratios[5], simulation.succes_rates[1], simulation.succes_rates[2], simulation.succes_rates[3], simulation.succes_rates[4], simulation.succes_rates[5]
 
 def plot_acceptance_parallel(geometry_infilename: str = '../classes/initial_universes/sample-g0-T3.cdt', strictness: int = 3, k0: int = 0, k3: float = 0.7, sweeps: int = 50, thermal_sweeps: int = 50, k_steps: int = 100000, target_volume: int = 10000, target2_volume: int = 0, chain: int = 0, savefig: bool = True):
     """
@@ -521,11 +521,11 @@ def plot_acceptance_sequential(geometry_infilename: str = '../classes/initial_un
         )
         
         # Append to the general lists
-        add_ap_list.append(simulation.add_ap)
-        del_ap_list.append(simulation.delete_ap)
-        flip_ap_list.append(simulation.flip_ap)
-        shift_ap_list.append(simulation.shift_ap)
-        ishift_ap_list.append(simulation.ishift_ap)
+        add_ap_list.append(simulation.acceptance_ratios[1])
+        del_ap_list.append(simulation.acceptance_ratios[2])
+        flip_ap_list.append(simulation.acceptance_ratios[3])
+        shift_ap_list.append(simulation.acceptance_ratios[4])
+        ishift_ap_list.append(simulation.acceptance_ratios[5])
         
         add_sr_list.append(simulation.succes_rates[1])
         del_sr_list.append(simulation.succes_rates[2])
