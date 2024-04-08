@@ -16,10 +16,6 @@ from bag import Bag
 import resource
 import sys
 import pickle
-import os
-import networkx as nx
-import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
 import gzip
 
 max_rec = 0x100000
@@ -1316,58 +1312,6 @@ class Universe:
         print(f"Geometry exported to {geometry_outfilename}.")
 
         return True
-
-    def make_network_graph(self, save: bool = False, filename: str = f"network_graph.png"):
-        """
-        Plots a network graph of the triangulation.
-        """
-        self.log()
-        
-        node_colors_dict = {0: 'gold', 1: 'indigo', 2: 'cyan'}
-
-        # Create the network graph
-        G = nx.Graph()
-        for vertex in self.vertex_pool.get_objects():
-            G.add_node(
-                vertex.ID,
-                color=node_colors_dict[vertex.time],
-                time=vertex.time,
-                tetrahedron=vertex.tetra.ID,
-                degree=len(self.vertex_neighbours[vertex.ID]),
-                cnum=vertex.cnum,
-                scnum=vertex.scnum
-                )
-
-        for vertex in self.vertex_pool.get_objects():
-            for neighbour_vertex in self.vertex_neighbours[vertex.ID]:
-                neighbour_vertex = self.vertex_pool.get(neighbour_vertex)
-
-                if vertex.time == neighbour_vertex.time:
-                    G.add_edge(vertex.ID, neighbour_vertex.ID, color='b')
-                else:
-                    G.add_edge(vertex.ID, neighbour_vertex.ID, color='r')
-
-        # Draw the network graph
-        pos = nx.spring_layout(G)
-        edges = G.edges()
-        edge_colors = [G.edges[edge]['color'] for edge in edges]
-        node_colors = [G.nodes[node]['color'] for node in G.nodes()]
-        plt.figure(figsize=(10, 7))
-        nx.draw_networkx_nodes(G, pos, node_size=20, node_color=node_colors, edgecolors='black', alpha=0.7)
-        nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=1, alpha=0.7)
-
-        # Add legend for nodes and edges
-        edge_elements = [Line2D([0], [0], color='b', lw=1, label='Spacelike'),
-                        Line2D([0], [0], color='r', lw=1, label='Timelike')]
-        node_elements = [Line2D([0], [0], marker='o', color='w', markerfacecolor=color, markersize=10, label=f't = {time}') for time, color in node_colors_dict.items()]
-
-        plt.legend(handles=node_elements + edge_elements)
-
-        if save:
-            plt.savefig(filename + 'png', dpi=400)
-            # Export as graph for gephi
-            nx.write_gexf(G, f'{filename}.gexf')
-        plt.show()
 
     def log(self):
         """
