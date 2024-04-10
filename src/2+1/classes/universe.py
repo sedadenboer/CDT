@@ -31,6 +31,10 @@ class Universe:
     The Universe class represents the current state of the triangulation
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
+
+    Args:
+        geometry_infilename (str): Name of the file with the geometry.
+        strictness (int): The strictness of the manifold conditions.
     """
     class Capacity:
         VERTEX = 1000000
@@ -47,11 +51,6 @@ class Universe:
         APEX_INDEX_13 = OPPOSITE_TETRA_INDEX_13 = 0
         
     def __init__(self, geometry_infilename: str, strictness: int = 3):
-        """
-        Args:
-            geometry_infilename (str): Name of the file with the geometry.
-            strictness (int): The strictness of the manifold conditions.
-        """
         self.strictness = strictness
         self.debug_print = False
 
@@ -1123,10 +1122,8 @@ class Universe:
         Returns:
             Dict[int, List[int]]: Curvature profile of the Universe.
         """
-        times = list(range(self.n_slices))
-
         # Make a dict for each time slice with the vertices
-        scnums_per_slice = {t: [] for t in times}
+        scnums_per_slice = {t: [] for t in range(self.n_slices)}
 
         for v in self.vertex_pool.get_objects():
             scnums_per_slice[v.time].append(v.scnum)

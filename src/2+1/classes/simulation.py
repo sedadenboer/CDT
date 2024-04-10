@@ -9,9 +9,9 @@
 
 import random
 import numpy as np
-import time
 from universe import Universe
-from typing import TYPE_CHECKING, List, Tuple, Dict
+from observable import Observable
+from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 if TYPE_CHECKING:
     from universe import Universe
 
@@ -23,114 +23,135 @@ class Simulation:
     the detailed-balance conditions. If it decides a move should be
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
+
+    Args:
+        universe (Universe): The universe object representing the system.
+        seed (int): The seed for the random number generator.
+        k0 (int): The number of k0 moves to perform.
+        k3 (int): The number of k3 moves to perform.
+        tune_flag (bool): Flag to tune the k3 parameter. Defaults to True.
+        thermal_sweeps (int): The number of thermal sweeps to perform.
+        sweeps (int): The number of sweeps to perform.
+        k_steps (int): The number of k steps to perform.
+        v1 (int, optional): The frequency of the v1 move. Defaults to 1.
+        v2 (int, optional): The frequency of the v2 move. Defaults to 1.
+        v3 (int, optional): The frequency of the v3 move. Defaults to 1.
+        volfix_switch (int, optional): The volfix switch. Defaults to 0.
+        target_volume (int, optional): The target volume. Defaults to 0.
+        target2_volume (int, optional): The second target volume. Defaults to 0.
+        epsilon (float, optional): The epsilon parameter. Defaults to 0.00005.
+        observables (List[str], optional): The list of observables to measure. Defaults to []. 
+                                           Options are: 'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22',
+                                           'slice_sizes', 'slab_sizes','curvature'.
+        measuring_interval (int, optional): The measuring interval. Defaults to 1.
+        measuring_thermal (bool, optional): Flag to measure thermal data. Defaults to False.
+        measuring_main (bool, optional): Flag to measure main data. Defaults to False.
+        save_main (bool, optional): Flag to save main data. Defaults to False.
+        save_thermal (bool, optional): Flag to save thermal data. Defaults to False.
+        as_pickle (bool, optional): Flag to save data as pickle. Defaults to True.
+        saving_interval (int, optional): The saving interval. Defaults to 1.
+        validity_check (bool, optional): Flag to perform validity check. Defaults to False.
     """
-    class constants:
+    class Constants:
         N_VERTICES_TETRA = 4
         N_VERTICES_TRIANGLE = 3
+        N_MOVES = 5
 
-    def __init__(self, universe: Universe):
-        self.universe: Universe = universe 
-        self.k0: int = 0
-        self.k3: int = 0
-        self.volfix_switch: int = 0
-        self.target_volume: int = 0
-        self.target2_volume: int = 0
-        self.rng: random.Random = random.Random(0)
-        self.epsilon: float = 0.00005
-        self.measuring: bool = True
-        self.move_freqs: Tuple[int, int, int] = (1, 1, 1)
-        self.k3_values: List[float] = []
-        self.total_vertices: List[int] = []
-        self.total_tetrahedra: List[int] = []
-        self.total_31_tetrahedra: List[int] = []
-        self.total_22_tetrahedra: List[int] = []
-        self.measured_slice_sizes: List[Dict[int, int]] = []
-        self.measured_slab_sizes: List[Dict[int, int]] = []
-        self.measured_curvature_profiles: List[Dict[int, int]] = []
-        self.ratio_22_31: List[float] = []
-        self.ratio_22_3: List[float] = []
-        self.expected_N22_N3: float = 0
-        self.expected_N22_N31: float = 0
-        self.save_thermal: bool = False
-        self.save_main: bool = False
-        self.saving_interval: int = 10
-        self.measuring_interval: int = 10
-        self.save_final: bool = False
-        self.as_pickle: bool = True
-        self.acceptance_ratios: Dict[int, List[float]] = {1: [], 2: [], 3: [], 4: [], 5: []}
-        self.succes_rates: Dict[int, List[float]] = {1: [], 2: [], 3: [], 4: [], 5: []}
+    def __init__(self,
+                    universe: Universe, seed: int,
+                    k0: int, k3: int, tune_flag: bool = True,
+                    thermal_sweeps: int = 10, sweeps: int = 10, k_steps: int = 1000,
+                    v1: int = 1, v2: int = 1, v3: int = 1,
+                    volfix_switch: int = 0, target_volume: int = 0, target2_volume: int = 0, epsilon: float = 0.00005,
+                    observables: List[Observable] = [], include_mcmc_data: bool = True,
+                    measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
+                    save_main: bool = False, save_thermal: bool = False, as_pickle: bool = True, saving_interval: int = 1,
+                    validity_check: bool = False,
+            ):
+            self.universe: Universe = universe
+            self.rng: random.Random = random.Random(seed)
+            self.k0: int = k0
+            self.k3: int = k3
+            self.tune_flag: bool = tune_flag
+            self.thermal_sweeps = thermal_sweeps
+            self.sweeps: int = sweeps
+            self.k_steps: int = k_steps
+            self.volfix_switch: int = volfix_switch
+            self.target_volume: int = target_volume
+            self.target2_volume: int = target2_volume
+            self.epsilon: float = epsilon
+            self.validity_check: bool = validity_check
+            self.save_main: bool = save_main
+            self.save_thermal: bool = save_thermal
+            self.as_pickle: bool = as_pickle
+            self.saving_interval: int = saving_interval
+            self.measuring_interval: int = measuring_interval
+            self.measuring_thermal: bool = measuring_thermal
+            self.measuring_main: bool = measuring_main
+            self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
+            self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
+            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k_steps) for obs in observables}
+            self.include_mcmc_data: bool = include_mcmc_data
+            if self.include_mcmc_data:
+                self.successes: List[np.ndarray] = []
+                self.fails: List[np.darray] = []
+                self.acceptance_ratios = []
+                self.k3_values = []
 
-    def start(self, k0: int, k3: int,
-                    thermal_sweeps: int, sweeps: int, k_steps: int,
-                    volfix_switch: int, target_volume: int, target2_volume: int,
-                    seed: int, outfile: str, validity_check: bool,
-                    v1: int, v2: int, v3: int):
+    def start(self, outfile: str = 'output'):
         """
         Starts the MCMC CDT 2+1 simulation.
-
-        Args:
-            k0 (int): The k0 parameter.
-            k3 (int): The k3 parameter.
-            thermal_sweeps (int): The number of thermal sweeps to perform.
-            sweeps (int): The number of main sweeps to perform.
-            k_steps (int): The number of steps to perform in each sweep.
-            volfix_switch (int): The volume fix switch. 0 for (3,1)-tetrahedra, 1 for all tetrahedra.
-            target_volume (int): The target volume of the simulation.
-            target2_volume (int): The target 2D volume of the simulation.
-            seed (int): The seed for the random number generator.
-            outfile (str): The output file for the simulation.
-            validity_check (bool): True if the validity of the universe should be checked, False otherwise.
-            v1 (int): The first move frequency.
-            v2 (int): The second move frequency.
-            v3 (int): The third move frequency.
         """
-        self.move_freqs = (v1, v2, v3)
-        self.k0 = k0
-        self.k3 = k3
-        self.volfix_switch = volfix_switch
-        self.target_volume = target_volume
-        self.target2_volume = target2_volume
-        self.rng.seed(seed)
-        
+        for obs in self.observables.values():
+            obs.clear_data()
+
         # Thermal sweeps
-        if thermal_sweeps > 0:
+        if self.thermal_sweeps > 0:
             print("========================================\n")
             print("THERMAL SWEEPS\n")
             print("----------------------------------------\n")
-            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
+            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {self.thermal_sweeps}, sweeps = {self.sweeps}, target = {self.target_volume}, target2d = {self.target2_volume}\n")
             print("----------------------------------------\n")
 
-            for i in range(1, thermal_sweeps + 1):
+            for i in range(1, self.thermal_sweeps + 1):
                 # Get the current state of the universe and print it
                 n0 = self.universe.vertex_pool.get_number_occupied()
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
                 print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
-
-                # Save acceptance probabilities
-                add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
-                self.acceptance_ratios[1].append(add_ap_vals)
-                self.acceptance_ratios[2].append(delete_ap_vals)
-                self.acceptance_ratios[3].append(flip_ap_vals)
-                self.acceptance_ratios[4].append(shift_ap_vals)
-                self.acceptance_ratios[5].append(ishift_ap_vals)
             
-                # Perform sweeps and tune the k3 parameter
-                self.perform_sweep(k_steps)
-                self.tune()
+                # Perform sweeps and save general mcmc move stats
+                thermal_successes, thermal_fails = self.perform_sweep(self.k_steps)
+                if self.include_mcmc_data:
+                    self.successes.append(thermal_successes)
+                    self.fails.append(thermal_fails)
+                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.Constants.N_MOVES + 1)])
+                    self.k3_values.append(self.k3)
+                
+                # Tune the k3 parameter
+                if self.tune_flag:
+                    self.tune()
+
+                # Update geometry
                 self.prepare()
 
-                if validity_check:
+                # Check if the universe geometry is valid
+                if self.validity_check:
                     self.universe.log()
                     self.universe.check_validity()
                 
+                # Measure observables
+                if self.measuring_thermal and i % self.measuring_interval == 0:
+                    # Measure observables
+                    for name, obs in self.observables.items():
+                        obs.measure(self.get_observable_data(name))
+
                 # Save the universe (optional)
                 if self.save_thermal and i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
 
-
-        if sweeps > 0:
+        if self.sweeps > 0:
             # Main sweeps
             print("========================================\n")
             print("MAIN SWEEPS\n")
@@ -138,7 +159,7 @@ class Simulation:
             print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}\n")
             print("----------------------------------------\n")
 
-            for i in range(1, sweeps + 1):
+            for i in range(1, self.sweeps + 1):
                 # Get the current state of the universe and print it
                 n0 = self.universe.vertex_pool.get_number_occupied()
                 n31 = self.universe.tetras_31.get_number_occupied()
@@ -146,30 +167,26 @@ class Simulation:
                 n22 = self.universe.tetras_22.get_number_occupied()
                 print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} k0: {self.k0} k3: {self.k3} \t CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
 
-                # Save acceptance probabilities
-                add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
-                self.acceptance_ratios[1].append(add_ap_vals)
-                self.acceptance_ratios[2].append(delete_ap_vals)
-                self.acceptance_ratios[3].append(flip_ap_vals)
-                self.acceptance_ratios[4].append(shift_ap_vals)
-                self.acceptance_ratios[5].append(ishift_ap_vals)
-
-                # Perform sweeps
-                self.perform_sweep(k_steps)
+                # Perform sweeps and save general mcmc move stats
+                main_successes, main_fails = self.perform_sweep(self.k_steps)
+                if self.include_mcmc_data:
+                    self.successes.append(main_successes)
+                    self.fails.append(main_fails)
+                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.Constants.N_MOVES + 1)])
 
                 # Ensure that the universe is at the target volume (if specified)
-                if target_volume > 0:
+                if self.target_volume > 0:
                     # Flag to track if the target volume is reached
                     compare = 0
 
                     # Attempt moves until the target volume is reached
-                    while compare != target_volume:
+                    while compare != self.target_volume:
                         self.attempt_move()
                         # Update the compare variable based on the volume switch
                         compare = self.universe.tetras_31.get_number_occupied() if self.volfix_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
             
                 # Check if there's a 2D target volume specified for the timeslices
-                if target2_volume > 0:
+                if self.target2_volume > 0:
                     # Flag to track if the 2D target volume is reached
                     hit = False
 
@@ -179,39 +196,76 @@ class Simulation:
 
                         # Check if any slice matches the 2D target volume
                         for s in self.universe.slice_sizes:
-                            if s == target2_volume:
+                            if s == self.target2_volume:
                                 hit = True
                                 break
                 
+                # Update geometry 
                 self.prepare()
 
-                # Measurements
-                if self.measuring and i % self.measuring_interval == 0:
-                    self.total_vertices.append(n0)
-                    self.total_tetrahedra.append(n3)
-                    self.total_31_tetrahedra.append(n31)
-                    self.total_22_tetrahedra.append(n22)
-                    self.ratio_22_31.append(n22 / n31)
-                    self.ratio_22_3.append(n22 / n3)
-                    self.measured_slice_sizes.append(self.universe.slice_sizes)
-                    self.measured_slab_sizes.append(self.universe.slab_sizes)
-                    self.measured_curvature_profiles.append(self.universe.get_curvature_profile())
-
-                if validity_check:
+                # Check if the universe geometry is valid
+                if self.validity_check:
                     self.universe.log()
                     self.universe.check_validity()
+
+                # Measure observables
+                if self.measuring_main and i % self.measuring_interval == 0:
+                    # Measure observables
+                    for name, obs in self.observables.items():
+                        obs.measure(self.get_observable_data(name))
 
                 # Save universe (optional)
                 if self.save_main and i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
 
-            # Compute <N22/N3(1)> variable
-            self.expected_N22_N31 = sum(self.ratio_22_31) / sweeps
-            self.expected_N22_N3 = sum(self.ratio_22_3) / sweeps
+        # Make success rates, acceptance ratios and k3 values observables
+        if self.include_mcmc_data:
+            self.observables['successes'] = Observable('successes', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['successes'].data = self.successes
+            self.observables['fails'] = Observable('fails', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['fails'].data = self.fails
+            self.observables['acceptance_ratios'] = Observable('acceptance_ratios', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['acceptance_ratios'].data = self.acceptance_ratios
+            self.observables['k3_values'] = Observable('k3_values', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['k3_values'].data = self.k3_values
 
-        if self.save_final:
-            self.universe.export_geometry(outfile + 'final', as_pickle=self.as_pickle)
-            
+        # Save observables
+        if self.measuring_thermal or self.measuring_main:
+            for name, obs in self.observables.items():
+                obs.save_data(outfile + f"_{name}")
+
+    def get_observable_data(self, name: str) -> Any:
+        """
+        Gets the observable object by name.
+        Options are: 'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22',
+        'slice_sizes', 'slab_sizes','curvature'.
+
+        Args:
+            name (str): The name of the observable.
+
+        Returns:
+            Any: The measured value of the observable.
+
+        Raises:
+            ValueError: If the observable is not found.
+        """
+        if name == 'n_vertices':
+            return self.universe.vertex_pool.get_number_occupied()
+        elif name == 'n_tetras':
+            return self.universe.tetrahedron_pool.get_number_occupied()
+        elif name == 'n_tetras_31':
+            return self.universe.tetras_31.get_number_occupied()
+        elif name == 'n_tetras_22':
+            return self.universe.tetras_22.get_number_occupied()
+        elif name == 'slice_sizes':
+            return self.universe.slice_sizes
+        elif name == 'slab_sizes':
+            return self.universe.slab_sizes
+        elif name == 'curvature':
+            return self.universe.get_curvature_profile()
+        else:
+            raise ValueError(f"Observable {name} not found.")
+        
     def attempt_move(self) -> int:
         """
         Attempt a move based on the move frequencies.
@@ -252,16 +306,20 @@ class Simulation:
                 else:
                     return 5 if self.move_ishift_d() else -5
                 
-    def perform_sweep(self, n: int):
+    def perform_sweep(self, n: int) -> Tuple[List[int], List[int]]:
         """
         Perform a sweep of the simulation.
 
         Args:
             n (int): The number of moves to perform.
+            which_sweep (str): The type of sweep ('thermal' or 'main').
+
+        Returns:
+            Tuple[List[int], List[int]]: The gathered counts and failed counts.
         """
-        gathered_counts = [0, 0, 0, 0, 0]
-        gathered_failed_counts = [0, 0, 0, 0, 0]
-        
+        gathered_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
+        gathered_failed_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
+
         # Perform n moves
         for _ in range(n):
             move_num = self.attempt_move()
@@ -273,10 +331,8 @@ class Simulation:
             else:
                 gathered_failed_counts[move - 1] += 1
 
-        # Calculate the success rates and save them
-        for i, count in enumerate(gathered_counts):
-            self.succes_rates[i + 1].append(count / (gathered_failed_counts[i] + count))
-    
+        return gathered_counts, gathered_failed_counts
+
     def mcmc_check(self, acceptance_probability: float) -> bool:
         """
         Metropolis-Hastings check for acceptance of a move.
@@ -296,6 +352,65 @@ class Simulation:
         # Accept
         return True
     
+    def get_acceptance_probability(self, move: int):
+        """
+        Calculates the acceptance probabilities for the different moves.
+
+        Args:
+            move (int): The move to calculate the acceptance probability for.
+        """
+        # Get relevant variables 
+        n31 = self.universe.tetras_31.get_number_occupied()
+        n3 = self.universe.tetrahedron_pool.get_number_occupied()
+        n0 = self.universe.vertex_pool.get_number_occupied()
+
+        if move == 1:
+            add_ap = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
+            # If the target volume is specified, adjust AP according to the volume switch
+            if self.volfix_switch == 0:
+                if self.target_volume > 0:
+                    add_ap *= np.exp(
+                        4 * self.epsilon * (self.target_volume - n31 - 1))
+            else:
+                if self.target_volume > 0:
+                    add_ap *= np.exp(
+                        8 * self.epsilon * (self.target_volume - n3 - 2))
+                    
+            return add_ap
+        elif move == 2:
+            delete_ap = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
+
+            # If the target volume is specified, adjust AP according to the volume switch
+            if self.volfix_switch == 0:
+                if self.target_volume > 0:
+                    delete_ap *= np.exp(
+                        -4 * self.epsilon * (self.target_volume - n31 - 1))
+            else:
+                if self.target_volume > 0:
+                    delete_ap *= np.exp(
+                        -8 * self.epsilon * (self.target_volume - n3 - 2))
+    
+            return delete_ap
+        elif move == 3:
+            flip_ap = 1
+            return flip_ap
+        elif move == 4:
+            shift_ap = np.exp(-self.k3)
+            # If the target volume is specified, adjust AP according to the volume switch
+            if self.volfix_switch == 1:
+                if self.target_volume > 0:
+                    shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+            return shift_ap
+        elif move == 5:
+            ishift_ap = np.exp(self.k3)
+            # If the target volume is specified, adjust AP according to the volume switch
+            if self.volfix_switch == 1:
+                if self.target_volume > 0:
+                    ishift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+
+            return ishift_ap
+        
     def move_add(self) -> bool:
         """
         Metropolis-Hastings move to add a tetrahedron.
@@ -303,25 +418,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        # Get relevant variables for calculating the add AP and calculate it
-        n31 = self.universe.tetras_31.get_number_occupied()
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        n0 = self.universe.vertex_pool.get_number_occupied()
-
-        acceptance_probability = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
-
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 0:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(
-                    4 * self.epsilon * (self.target_volume - n31 - 1))
-        else:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(
-                    8 * self.epsilon * (self.target_volume - n3 - 2))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(1)):
             return False
         
         # Perform the move
@@ -335,24 +433,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        # Get relevant variables for calculating the delete AP and calculate it
-        n31 = self.universe.tetras_31.get_number_occupied()
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        n0 = self.universe.vertex_pool.get_number_occupied()
-        acceptance_probability = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
-     
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 0:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(
-                    -4 * self.epsilon * (self.target_volume - n31 - 1))
-        else:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(
-                    -8 * self.epsilon * (self.target_volume - n3 - 2))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(2)):
             return False
 
         # Get a random vertex
@@ -404,16 +486,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        acceptance_probability = np.exp(-self.k3)
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-     
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 1:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
         
         # Pick a random (3,1)-tetrahedron
@@ -439,16 +513,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        acceptance_probability = np.exp(-self.k3)
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 1:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
         
         # Pick a random (1,3)-tetrahedron
@@ -474,16 +540,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        acceptance_probability = np.exp(self.k3)
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-       
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 1:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
         
         # Pick a random (3,1)-tetrahedron
@@ -505,7 +563,7 @@ class Simulation:
 
         # Count the number of shared vertices between tetra22l and tetra22r
         shared_vertices = 0
-        for i in range(self.constants.N_VERTICES_TETRA):
+        for i in range(self.Constants.N_VERTICES_TETRA):
             if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
                 shared_vertices += 1
 
@@ -524,16 +582,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        acceptance_probability = np.exp(self.k3)
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-       
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 1:
-            if self.target_volume > 0:
-                acceptance_probability *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-
         # Perform MCMC check for acceptance
-        if not self.mcmc_check(acceptance_probability):
+        if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
         
         # Pick a random (1,3)-tetrahedron
@@ -556,7 +606,7 @@ class Simulation:
         
         # Count the number of shared vertices between tetra22l and tetra22r
         shared_vertices = 0
-        for i in range(self.constants.N_VERTICES_TETRA):
+        for i in range(self.Constants.N_VERTICES_TETRA):
             if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
                 shared_vertices += 1
 
@@ -612,91 +662,22 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
-        # print(f"New k3: {self.k3}\n")
-        # Append the k3 value to the list
-        self.k3_values.append(self.k3)
-
-    def get_acceptance_probabilities(self):
-        """
-        Calculates the acceptance probabilities for the different moves.
-        """
-        # Get relevant variables 
-        n31 = self.universe.tetras_31.get_number_occupied()
-        n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        n0 = self.universe.vertex_pool.get_number_occupied()
-        add_ap = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
-        delete_ap = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
-        flip_ap = 1
-        shift_ap = np.exp(-self.k3)
-        ishift_ap = np.exp(self.k3)
-
-        # If the target volume is specified, adjust AP according to the volume switch
-        if self.volfix_switch == 0:
-            if self.target_volume > 0:
-                add_ap *= np.exp(
-                    4 * self.epsilon * (self.target_volume - n31 - 1))
-                delete_ap *= np.exp(
-                    -4 * self.epsilon * (self.target_volume - n31 - 1))
-        else:
-            if self.target_volume > 0:
-                add_ap *= np.exp(
-                    8 * self.epsilon * (self.target_volume - n3 - 2))
-                delete_ap *= np.exp(
-                    -8 * self.epsilon * (self.target_volume - n3 - 2))
-                shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-                ishift_ap *= np.exp(-self.epsilon * (2 * self.target_volume - 2 * n3 -1))
-        
-        return add_ap, delete_ap, flip_ap, shift_ap, ishift_ap
-        
-    def attempt_simple(self):
-        # Generate a random number to select a move pair
-        move = self.rng.randint(0, 1)
-
-        if move == 0:
-            # Add or delete move
-            if self.rng.randint(0, 1) == 0:
-                return 1 if self.move_add() else -1
-            else:
-                return 2 if self.move_delete() else -2
-        else:
-            # Flip move
-            return 3 if self.move_flip() else -3
-        
-    def trial(self, k0, k3, seed, N):
-        self.k0 = k0
-        self.k3 = k3
-        self.rng.seed(seed)
-        test = {1: 0, -1: 0, 2: 0, -2: 0, 3: 0, -3: 0, 4: 0, -4: 0, 5: 0, -5: 0}
-        start = time.time()
-
-        for i in range(N):
-            # print(f"Trial: {i}")
-            # move_num = self.attempt_move()
-            move_num = self.attempt_move()
-            test[move_num] += 1
-            # print(f"Move: {move_num}, k3: {self.k3}")
-            # print(f"Test: {test}")
-            print(f"Total n31: {self.universe.tetras_31.get_number_occupied()}, Total n3: {self.universe.tetrahedron_pool.get_number_occupied()}, Total n0: {self.universe.vertex_pool.get_number_occupied()}\n")
-            # self.universe.update_geometry()
-
-            # if move_num > 0:
-            #     self.universe.check_validity()
-
-        print(f"{test}")
-        self.universe.check_validity()
-
-        end = time.time()
-        print(f"Time: {end - start} \n")
-        # self.universe.export_geometry(f"geometry_k0={k0}_k3={k3}_seed={seed}_N={N}")
-
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     
-    simulation = Simulation(universe)
-
-    simulation.start(k0=0, k3=1.0417799999999955, thermal_sweeps=10, sweeps=0, k_steps=100000, volfix_switch=0, target_volume=10000, target2_volume=0, seed=0, outfile='output', validity_check=True, v1=1, v2=1, v3=1)
-
+    simulation = Simulation(universe=universe, seed=42,
+                            k0=1, k3=1.1760799999999827, tune_flag=True, thermal_sweeps=50, sweeps=0, k_steps=10000,
+                            target_volume=1000,
+                            observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
+                            include_mcmc_data=True,
+                            measuring_interval=1, measuring_thermal=True, measuring_main=True, save_main=False, save_thermal=False, as_pickle=True, saving_interval=1, validity_check=False)
     
-   
+    simulation.start('test_run/output')
+    observed = simulation.observables
+
+    for name, obs in observed.items():
+        print(f"Observable: {name}")
+        print(f"Thermal: {obs.data}\n")
+        print()
