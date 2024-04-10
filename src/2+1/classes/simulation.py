@@ -54,6 +54,7 @@ class Simulation:
         self.save_thermal: bool = False
         self.save_main: bool = False
         self.saving_interval: int = 10
+        self.measuring_interval: int = 10
         self.save_final: bool = False
         self.as_pickle: bool = True
         self.acceptance_ratios: Dict[int, List[float]] = {1: [], 2: [], 3: [], 4: [], 5: []}
@@ -92,41 +93,42 @@ class Simulation:
         self.rng.seed(seed)
         
         # Thermal sweeps
-        print("========================================\n")
-        print("THERMAL SWEEPS\n")
-        print("----------------------------------------\n")
-        print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
-        print("----------------------------------------\n")
+        if thermal_sweeps > 0:
+            print("========================================\n")
+            print("THERMAL SWEEPS\n")
+            print("----------------------------------------\n")
+            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {thermal_sweeps}, sweeps = {sweeps}, target = {target_volume}, target2d = {target2_volume}\n")
+            print("----------------------------------------\n")
 
-        for i in range(1, thermal_sweeps + 1):
-            # Get the current state of the universe and print it
-            n0 = self.universe.vertex_pool.get_number_occupied()
-            n31 = self.universe.tetras_31.get_number_occupied()
-            n3 = self.universe.tetrahedron_pool.get_number_occupied()
-            n22 = self.universe.tetras_22.get_number_occupied()
-            print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
+            for i in range(1, thermal_sweeps + 1):
+                # Get the current state of the universe and print it
+                n0 = self.universe.vertex_pool.get_number_occupied()
+                n31 = self.universe.tetras_31.get_number_occupied()
+                n3 = self.universe.tetrahedron_pool.get_number_occupied()
+                n22 = self.universe.tetras_22.get_number_occupied()
+                print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
 
-            # Save acceptance probabilities
-            add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
-            self.acceptance_ratios[1].append(add_ap_vals)
-            self.acceptance_ratios[2].append(delete_ap_vals)
-            self.acceptance_ratios[3].append(flip_ap_vals)
-            self.acceptance_ratios[4].append(shift_ap_vals)
-            self.acceptance_ratios[5].append(ishift_ap_vals)
-        
-            # Perform sweeps and tune the k3 parameter
-            self.perform_sweep(k_steps)
-            self.tune()
-            self.prepare()
+                # Save acceptance probabilities
+                add_ap_vals, delete_ap_vals, flip_ap_vals, shift_ap_vals, ishift_ap_vals = self.get_acceptance_probabilities()
+                self.acceptance_ratios[1].append(add_ap_vals)
+                self.acceptance_ratios[2].append(delete_ap_vals)
+                self.acceptance_ratios[3].append(flip_ap_vals)
+                self.acceptance_ratios[4].append(shift_ap_vals)
+                self.acceptance_ratios[5].append(ishift_ap_vals)
+            
+                # Perform sweeps and tune the k3 parameter
+                self.perform_sweep(k_steps)
+                self.tune()
+                self.prepare()
 
-            # Save the universe (optional)
-            if self.save_thermal:
-                if i % self.saving_interval == 0:
+                if validity_check:
+                    self.universe.log()
+                    self.universe.check_validity()
+                
+                # Save the universe (optional)
+                if self.save_thermal and i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
 
-        if validity_check:
-            self.universe.log()
-            self.universe.check_validity()
 
         if sweeps > 0:
             # Main sweeps
@@ -184,7 +186,7 @@ class Simulation:
                 self.prepare()
 
                 # Measurements
-                if self.measuring and i % self.saving_interval == 0:
+                if self.measuring and i % self.measuring_interval == 0:
                     self.total_vertices.append(n0)
                     self.total_tetrahedra.append(n3)
                     self.total_31_tetrahedra.append(n31)
@@ -195,18 +197,17 @@ class Simulation:
                     self.measured_slab_sizes.append(self.universe.slab_sizes)
                     self.measured_curvature_profiles.append(self.universe.get_curvature_profile())
 
-                # Save universe (optional)
-                if self.save_main:
-                    if i % self.saving_interval == 0:
-                        self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
-                
                 if validity_check:
                     self.universe.log()
                     self.universe.check_validity()
 
-                # Compute <N22/N3(1)> variable
-                self.expected_N22_N31 = sum(self.ratio_22_31) / sweeps
-                self.expected_N22_N3 = sum(self.ratio_22_3) / sweeps
+                # Save universe (optional)
+                if self.save_main and i % self.saving_interval == 0:
+                    self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
+
+            # Compute <N22/N3(1)> variable
+            self.expected_N22_N31 = sum(self.ratio_22_31) / sweeps
+            self.expected_N22_N3 = sum(self.ratio_22_3) / sweeps
 
         if self.save_final:
             self.universe.export_geometry(outfile + 'final', as_pickle=self.as_pickle)
@@ -694,5 +695,8 @@ if __name__ == "__main__":
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     
     simulation = Simulation(universe)
+
+    simulation.start(k0=0, k3=1.0417799999999955, thermal_sweeps=10, sweeps=0, k_steps=100000, volfix_switch=0, target_volume=10000, target2_volume=0, seed=0, outfile='output', validity_check=True, v1=1, v2=1, v3=1)
+
     
    

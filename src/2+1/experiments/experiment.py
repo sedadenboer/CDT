@@ -28,6 +28,7 @@ def run_simulation(
         measuring: bool = True,
         save_observables: bool = False,
         saving_interval: int = 1,
+        measuring_interval: int = 1,
         ) -> Dict[str, any]:
     """
     Run a simulation with the given parameters and save the observables of the final state.
@@ -52,6 +53,7 @@ def run_simulation(
         measuring (bool): Whether to perform measurements during the main sweeps. Defaults to True.
         save_observables (bool): Whether to save the observables of the final state. Defaults to False.
         saving_interval (int): When to output geometries (every n sweeps). Defaults to 1.
+        meauring_interval (int): When to measure observables (every n sweeps). Defaults to 1.
 
     Returns:
         Dict[str, any]: A dictionary containing the observables of the final state.
@@ -64,6 +66,7 @@ def run_simulation(
     simulation.as_pickle = as_pickle
     simulation.measuring = measuring
     simulation.saving_interval = saving_interval
+    simulation.measuring_interval = measuring_interval
 
     # Run simulation
     print(f"Running k0={k0}, k3_init_guess={k3_init_guess}, chain={chain}")
@@ -88,16 +91,16 @@ def run_simulation(
     # k3 value
     k3: int = simulation.k3
 
+    # Acceptance ratios and succeses (measured the whole simulation)
+    acceptance_ratios: Dict[int, List[float]] = simulation.acceptance_ratios
+    succes_rates: Dict[int, List[float]] = simulation.succes_rates
+
     if sweeps > 0 and measuring:
         # Save observables after mcmc is done
         n_slices: int = universe.n_slices
         expected_n22_n31: float = simulation.expected_N22_N31
         expected_n22_n3: float = simulation.expected_N22_N3
     
-        # Acceptance ratios and succeses (measured the whole simulation)
-        acceptance_ratios: Dict[int, List[float]] = simulation.acceptance_ratios
-        succes_rates: Dict[int, List[float]] = simulation.succes_rates
-
         # Observables measured over time (measured every main sweep)
         total_vertices: List[int] = simulation.total_vertices
         total_tetrahedra: List[int] = simulation.total_tetrahedra
@@ -126,19 +129,31 @@ def run_simulation(
         # Save observables
         if save_observables:
             with gzip.open(f"measurements/simulation_k0={k0}_tswps={thermal_sweeps}_swps={sweeps}_kstps={k_steps}" +
-                        f"_trgtv={target_volume}_trgtv2={target2_volume}_fx={volfix_switch}_chn={chain}.pkl.gz", 'wb', compresslevel=1) as f:
+                        f"_trgtv={target_volume}_trgtv2={target2_volume}_fx={volfix_switch}_chn={chain}.pkl.gz", 'wb', compresslevel=6) as f:
                 pickle.dump(all_data, f)
 
         return all_data
     else:
+        mcmc_data = {
+            'k3': k3,
+            'acceptance_ratios': acceptance_ratios,
+            'succes_rates': succes_rates,
+        }
+
+        # Save observables
+        if save_observables:
+            with gzip.open(f"measurements/thermal_k0={k0}_tswps={thermal_sweeps}_swps={sweeps}_kstps={k_steps}" +
+                        f"_trgtv={target_volume}_trgtv2={target2_volume}_fx={volfix_switch}_chn={chain}.pkl.gz", 'wb', compresslevel=6) as f:
+                pickle.dump(mcmc_data, f)
+
         # Just return k3 as default
         return simulation.k3
 
-def worker(geometry_infilename, strictness, seed, k0, k3_init_guess, thermal_sweeps, sweeps, k_steps, target_volume, target2_volume, volfix_switch, chain, validity_check, save_thermal, save_main, as_pickle, save_observables, saving_interval):
+def worker(geometry_infilename, strictness, seed, k0, k3_init_guess, thermal_sweeps, sweeps, k_steps, target_volume, target2_volume, volfix_switch, chain, validity_check, save_thermal, save_main, as_pickle, measuring, save_observables, saving_interval, measuring_interval):
     """
     Worker function to be used with multiprocessing.
     """
-    return run_simulation(geometry_infilename, strictness, seed, k0, k3_init_guess, thermal_sweeps, sweeps, k_steps, target_volume, target2_volume, volfix_switch, chain, validity_check, save_thermal, save_main, as_pickle, save_observables, saving_interval)
+    return run_simulation(geometry_infilename, strictness, seed, k0, k3_init_guess, thermal_sweeps, sweeps, k_steps, target_volume, target2_volume, volfix_switch, chain, validity_check, save_thermal, save_main, as_pickle, measuring, save_observables, saving_interval, measuring_interval)
 
 def critical_k3_parallel(
         geometry_infilename: str,
@@ -175,7 +190,8 @@ def critical_k3_parallel(
             False,  # save_main
             True,  # as_pickle
             False,  # save_observables
-            1000 # saving interval
+            100, # saving interval
+            10 # measuring interval
         ))
 
     # Use multiprocessing Pool for parallel execution
@@ -183,57 +199,46 @@ def critical_k3_parallel(
         k3_final = pool.starmap(worker, args_list)
 
     # Save
-    with gzip.open(output_filename + '.pkl.gz', 'wb', compresslevel=9) as f:
+    with gzip.open(output_filename + '.pkl.gz', 'wb', compresslevel=6) as f:
         pickle.dump(k3_final, f)
 
     print(k3_final)
     return k3_final
 
-def critical_k3(
-        geometry_infilename: str,
-        output_filename: str,
+def generate_samples_parallel(
         chain: int = 0,
         k0_values: List[float] = [0, 1, 2, 3, 4, 5, 6, 7],
-        k3_init_guesses: List[float] = [0.7, 0.9, 1.1, 1.3, 1.5, 1.7, 1.9, 2.1]
-        ) -> Dict[int, List[float]]:
-    """
-    Runs n experiments with the given parameters for each k0 value and initial k3 guess, 
-    and saves the final k3 values.
-
-    Args:
-        geometry_infilename (str): The path to the input file containing the initial universe.
-    """
-    k3_final = []
-    # Run simulation chains
+        k3_init_guesses: List[float] = [1.0417799999999955, 1.1760799999999827, 1.3237199999999882, 1.4782399999999793, 1.6480799999999842, 1.8284799999999846, 2.0621400000000256, 2.3117000000000187]
+    ):
+    # Prepare arguments for multiprocessing
+    args_list = []
     for i, k0 in enumerate(k0_values):
-        k3 = run_simulation(
-                geometry_infilename=geometry_infilename,
-                strictness=3,
-                seed=chain,
-                k0=k0,
-                k3_init_guess=k3_init_guesses[i],
-                thermal_sweeps=10,
-                sweeps=0, # Has to be 0 for this experiment
-                k_steps=1000000,
-                target_volume=10000,
-                target2_volume=0,
-                volfix_switch=0,
-                chain=chain,
-                validity_check=False,
-                save_thermal=False,
-                save_main=False,
-                as_pickle=True,
-                save_observables=False,
-                saving_interval=10
-            )
+        args_list.append((
+            f'saved_universes/thermal_1000/universe_k0={k0}_tswps=1000_swps=0_kstps=1000000_trgtv=10000_trgtv2=0_fx=0_chn=0_thermal_1000.pkl.gz',
+            3, # strictness
+            chain, # seed
+            k0, 
+            k3_init_guesses[i],
+            0, # thermal sweeps=0 since we take already generated thermalized samples
+            1000,  # sweeps
+            1000000, # k_steps
+            10000, # target volume
+            0, # target 2 volume
+            0, # volfix switch
+            chain, 
+            False, # validity check
+            False,  # save_thermal
+            True,  # save_main
+            True,  # as_pickle
+            True, # measuring
+            True,  # save_observables
+            100, # saving interval
+            10 # measuring interval
+        ))
 
-        k3_final.append(k3)
-    
-    # Save
-    with gzip.open(output_filename + '.pkl.gz', 'wb', compresslevel=9) as f:
-        pickle.dump(k3_final, f)
-
-    return k3_final
+    # Use multiprocessing Pool for parallel execution
+    with mp.Pool() as pool:
+        pool.starmap(worker, args_list)
 
 def main(geometry_infilename: str, seed: int):
     """
@@ -272,10 +277,13 @@ def main(geometry_infilename: str, seed: int):
 
 if __name__ == "__main__":
     # main(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', seed=0)
-    critical_k3_parallel(
-        geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt',
-        output_filename='measurements/critical_k3_T10_trgtvN31=10000',
-        chain=0,
-        k0_values=[0, 1, 2, 3, 4, 5, 6, 7],
-        k3_init_guesses=[1.0417799999999955, 1.1760799999999827, 1.3237199999999882, 1.4782399999999793, 1.6480799999999842, 1.8284799999999846, 2.0621400000000256, 2.3117000000000187]
-        )
+
+    # critical_k3_parallel(
+    #     geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt',
+    #     output_filename='measurements/critical_k3_T10_trgtvN31=10000',
+    #     chain=0,
+    #     k0_values=[0, 1, 2, 3, 4, 5, 6, 7],
+    #     k3_init_guesses=[1.0417799999999955, 1.1760799999999827, 1.3237199999999882, 1.4782399999999793, 1.6480799999999842, 1.8284799999999846, 2.0621400000000256, 2.3117000000000187]
+    #     )
+    
+    generate_samples_parallel()

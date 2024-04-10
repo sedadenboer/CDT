@@ -13,6 +13,7 @@ from triangle import Triangle
 from tetra import Tetrahedron
 from pool import Pool
 from bag import Bag
+import numpy as np
 import resource
 import sys
 import pickle
@@ -354,7 +355,7 @@ class Universe:
             return False
 
         # Get the vertex index in the tetrahedron
-        vpos = t01.get_vertices().index(vertex)
+        vpos = np.where(t01.get_vertices() == vertex)[0][0]
         assert vpos >= 0
 
         # Get the base vertices of the two tetrahedra
@@ -528,7 +529,7 @@ class Universe:
         v3 = t230.get_vertex_opposite_tetra(t012)
         
         # Get the remaining base vertices
-        v1pos = t012.get_vertices().index(v1)
+        v1pos = np.where(t012.get_vertices() == v1)[0][0]
         v2 = t012.get_vertices()[(v1pos + 1) % 3]
         v0 = t012.get_vertices()[(v1pos + 2) % 3]
 
@@ -647,7 +648,7 @@ class Universe:
         
         # The remaining vertices
         v3 = t31.get_vertices()[3]
-        v0pos = t31.get_vertices().index(v0)
+        v0pos = np.where(t31.get_vertices() == v0)[0][0]
         v2 = t31.get_vertices()[(v0pos + 1) % 3]
         v4 = t31.get_vertices()[(v0pos + 2) % 3]
 
@@ -748,7 +749,7 @@ class Universe:
         v4 = t31.get_vertex_opposite_tetra(t22l)
 
         # The remaining vertices
-        v4pos = t31.get_vertices().index(v4)
+        v4pos = np.where(t31.get_vertices() == v4)[0][0]
         v0 = t31.get_vertices()[(v4pos + 1) % 3]
         v2 = t31.get_vertices()[(v4pos + 2) % 3]
 
@@ -844,7 +845,7 @@ class Universe:
 
         # The remaining vertices
         v3 = t13.get_vertices()[0] # Top
-        v0pos = t31.get_vertices().index(v0)
+        v0pos = np.where(t31.get_vertices() == v0)[0][0]
         v2 = t31.get_vertices()[(v0pos + 1) % 3]
         v4 = t31.get_vertices()[(v0pos + 2) % 3]
 
@@ -939,7 +940,7 @@ class Universe:
         v4 = t13.get_vertex_opposite_tetra(t22l)
 
         # Get the remaining vertices
-        v4pos = t31.get_vertices().index(v4)
+        v4pos = np.where(t31.get_vertices() == v4)[0][0]
         v0 = t31.get_vertices()[(v4pos + 1) % 3]
         v2 = t31.get_vertices()[(v4pos + 2) % 3]
 
@@ -1005,30 +1006,24 @@ class Universe:
         """
         Update the vertices of the Universe.
         """
-        # Determine the maximum vertex ID
-        max_vertex = 0
-        for v in self.vertex_pool.get_objects():
-            if v.ID > max_vertex:
-                max_vertex = v.ID
-
         # Clear the vertex neighbours
         self.vertex_neighbours.clear()
-        
-        # First make lists for each vertex 
+
+        # First make sets for each vertex 
         tetras_containing_vertex = {}
         vertex_spacelinks = {}
         vertex_links = {}
 
         for vertex in self.vertex_pool.get_objects():
-            tetras_containing_vertex[vertex.ID] = []
-            vertex_spacelinks[vertex.ID] = []
-            vertex_links[vertex.ID] = []
+            tetras_containing_vertex[vertex.ID] = set()
+            vertex_spacelinks[vertex.ID] = set()
+            vertex_links[vertex.ID] = set()
 
-        # Fill the lists
+        # Fill the sets
         for tetra in self.tetrahedron_pool.get_objects():
             for vertex in tetra.get_vertices():
                 # Save the tetrahedra that contain the vertex
-                tetras_containing_vertex[vertex.ID].append(tetra.ID)
+                tetras_containing_vertex[vertex.ID].add(tetra.ID)
 
                 # Save the spacelinks of the vertex
                 for neighbour in tetra.get_vertices():
@@ -1036,18 +1031,15 @@ class Universe:
                     if neighbour.ID != vertex.ID:
                         # Spacelinks if the neighbour has the same time
                         if neighbour.time == vertex.time:
-                            vertex_spacelinks[vertex.ID].append(neighbour.ID)
+                            vertex_spacelinks[vertex.ID].add(neighbour.ID)
 
                         # Timelinks
-                        vertex_links[vertex.ID].append(neighbour.ID)
+                        vertex_links[vertex.ID].add(neighbour.ID)
 
-        # Remove double entries
-        for vertex, tetras in tetras_containing_vertex.items():
-            tetras_containing_vertex[vertex] = list(set(tetras))
-        for vertex, space_neighbours in vertex_spacelinks.items():
-            vertex_spacelinks[vertex] = list(set(space_neighbours))
-        for vertex, neighbours in vertex_links.items():
-            vertex_links[vertex] = list(set(neighbours))
+        # Convert sets to lists
+        tetras_containing_vertex = {vertex: list(tetras) for vertex, tetras in tetras_containing_vertex.items()}
+        vertex_spacelinks = {vertex: list(space_neighbours) for vertex, space_neighbours in vertex_spacelinks.items()}
+        vertex_links = {vertex: list(neighbours) for vertex, neighbours in vertex_links.items()}
 
         self.vertex_neighbours = vertex_links
 
@@ -1274,6 +1266,14 @@ class Universe:
             if self.strictness == 2:
                 assert v.scnum >= 3
         
+        # Check correctness vertex_neighbours
+        for v, neighbours in self.vertex_neighbours.items():
+            for n in neighbours:
+                # Make sure the neighbour is in the vertex pool
+                assert self.vertex_pool.contains(n), f"Error: Vertex {v} has a missing neighbour. {n} not in vertex pool.\n{self.log()}"
+                # Make sure the neighbour also has the vertex as neighbour
+                assert self.vertex_neighbours[n].count(v) == 1, f"Error: Vertex {v} is not a neighbour of vertex {n}.\n{self.log()}"
+                
         print("Valid! :)")
         print("====================================================")
 
@@ -1338,45 +1338,3 @@ if __name__ == "__main__":
     u.update_geometry()
     u.check_validity()
     u.log()
-    # v.make_network_graph()
-
-    # # NOW HARDCODED CHECK BUT SEED CAN RESULT IN DIFFERENT OUTPUT
-    # # Check delete and add move
-    # random31 = u.tetras_31.pick()
-    # size_n3 = u.tetrahedron_pool.size
-    # size_n31 = u.tetras_31.size
-    # u.add(random31)
-    # print(f"Size n3: {size_n3}, Size n31: {size_n31}\nSize n3 after add: {u.tetrahedron_pool.size}, Size n31 after add: {u.tetras_31.size}")
-    # print(u.delete(15))
-    # print(f"Size n3 after delete: {u.tetrahedron_pool.size}, Size n31 after delete: {u.tetras_31.size}")
-
-    # # Set of neighbours
-    # t31 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    # other_t31 = t31.get_tetras()[1]
-    # t22 = t31.get_tetras()[0]
-
-    # # For the flip move
-    # t012 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    # tetra230 = t012.get_tetras()[1]
-
-    # # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
-    # while not tetra230.is_31() or not t31.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3]):
-    #     tetra230 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    #     tetra230 = t012.get_tetras()[1]
-        
-    # # Check flip, shift_u and ishift_u move
-    # u.flip(t012.ID, tetra230.ID)
-    # u.shift_u(t31.ID, t22.ID)
-    # u.ishift_u(360, 361, 362)
-
-    # # Other set of neighbours
-    # t31_2 = u.tetrahedron_pool.get(u.tetras_31.pick())
-    # t13 = t31_2.get_tetras()[3]
-    # t22_2 = t13.get_tetras()[3]
-
-    # # Check shift_d and ishift_d move
-    # u.shift_d(t13.ID, t22_2.ID)
-    # u.ishift_d(360, 361, 362)
-
-    # u.check_validity()
-    # u.export_geometry("output_yeah")

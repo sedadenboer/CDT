@@ -5,7 +5,9 @@
 #
 # Description: Defines a halfedge in the triangulation.
 
+
 from __future__ import annotations
+import numpy as np
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from vertex import Vertex
@@ -18,7 +20,7 @@ class HalfEdge:
     Represents a halfedge in the triangulation.
 
     Attributes:
-        vs (list[Vertex]): List of vertices.
+        vs (np.ndarray): Array of vertices.
         adj (HalfEdge): Adjacent halfedge.
         next (HalfEdge): Next halfedge.
         prev (HalfEdge): Previous halfedge.
@@ -30,7 +32,7 @@ class HalfEdge:
         """
         Initializes a new instance of the HalfEdge class.
         """
-        self.vs: list[Vertex] = [None, None]
+        self.vs: np.ndarray = np.empty(2, dtype=object)
         self.adj: HalfEdge = None
         self.next: HalfEdge = None
         self.prev: HalfEdge = None
@@ -48,12 +50,12 @@ class HalfEdge:
         self.vs[0] = ve
         self.vs[1] = vf
     
-    def get_vertices(self) -> list[Vertex]:
+    def get_vertices(self) -> np.ndarray:
         """
         Get the vertices of the halfedge.
 
         Returns:
-            list[Vertex]: List of vertices
+            np.ndarray: Array of vertices
         """
         return self.vs
 

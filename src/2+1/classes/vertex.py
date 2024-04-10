@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Dict, List
 if TYPE_CHECKING:
     from tetra import Tetrahedron
-
+import numpy as np
 
 class Vertex:
     """
@@ -38,7 +38,7 @@ class Vertex:
         """
         # Make sure that the vertex is in the base of the tetrahedron
         assert t.has_vertex(self)
-        assert t.get_vertices().index(self) != 3
+        assert np.array_equal(t.get_vertices(), self) != 3
         self.tetra = t
 
     def get_tetra(self) -> int:

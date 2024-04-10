@@ -1,12 +1,6 @@
-# triangle.py
-#
-# Author: Seda den Boer
-# Date: 17-02-2024
-# 
-# Description: Defines a triangle in the triangulation.
-
 from __future__ import annotations
-from typing import TYPE_CHECKING, Tuple
+import numpy as np
+from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from vertex import Vertex
     from halfedge import HalfEdge
@@ -23,9 +17,9 @@ class Triangle:
 
     def __init__(self):
         self.ID: int = -1
-        self.vs: Tuple[int] = ()
-        self.hes: Tuple[int] = ()
-        self.trnbr: Tuple[int] = ()
+        self.vs: np.ndarray = np.empty(3, dtype=object)
+        self.hes: np.ndarray = np.empty(3, dtype=object)
+        self.trnbr: np.ndarray = np.empty(3, dtype=object)
     
     def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex):
         """
@@ -36,7 +30,7 @@ class Triangle:
             v1 (Vertex): Second vertex.
             v2 (Vertex): Third vertex.
         """
-        self.vs = (v0, v1, v2)
+        self.vs = np.array([v0, v1, v2], dtype=object)
         assert v0.time == v1.time == v2.time
         self.time = v0.time
     
@@ -49,7 +43,7 @@ class Triangle:
             h1 (HalfEdge): Second halfedge.
             h2 (HalfEdge): Third halfedge.
         """
-        self.hes = (h0, h1, h2)
+        self.hes = np.array([h0, h1, h2], dtype=object)
     
     def set_triangle_neighbours(self, t0: Triangle, t1: Triangle, t2: Triangle):
         """
@@ -60,32 +54,32 @@ class Triangle:
             t1 (Triangle): Second triangle.
             t2 (Triangle): Third triangle.
         """
-        self.trnbr = (t0, t1, t2)
+        self.trnbr = np.array([t0, t1, t2], dtype=object)
     
-    def get_vertices(self) -> list[int, int, int]:
+    def get_vertices(self) -> np.ndarray:
         """
         Returns the vertices of the triangle.
 
         Returns:
-            list[int, int, int]: The vertices of the triangle.
+            np.ndarray: The vertices of the triangle.
         """
         return self.vs
     
-    def get_half_edges(self) -> list[int, int, int]:
+    def get_half_edges(self) -> np.ndarray:
         """
         Returns the halfedges of the triangle.
 
         Returns:
-            list[int, int, int]: The halfedges of the triangle.
+            np.ndarray: The halfedges of the triangle.
         """
         return self.hes
     
-    def get_triangle_neighbours(self) -> list[int, int, int]:
+    def get_triangle_neighbours(self) -> np.ndarray:
         """
         Returns the triangle neighbours of the triangle.
 
         Returns:
-            list[int, int, int]: The triangle neighbours of the triangle.
+            np.ndarray: The triangle neighbours of the triangle.
         """
         return self.trnbr
     
@@ -99,7 +93,4 @@ class Triangle:
         Returns:
             bool: True if `v` is a vertex of this triangle, False otherwise.
         """
-        return v.ID in self.vs
-
-
-
+        return np.any(self.vs == v.ID)
