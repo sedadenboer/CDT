@@ -48,7 +48,6 @@ class Simulation:
         measuring_main (bool, optional): Flag to measure main data. Defaults to False.
         save_main (bool, optional): Flag to save main data. Defaults to False.
         save_thermal (bool, optional): Flag to save thermal data. Defaults to False.
-        as_pickle (bool, optional): Flag to save data as pickle. Defaults to True.
         saving_interval (int, optional): The saving interval. Defaults to 1.
         validity_check (bool, optional): Flag to perform validity check. Defaults to False.
     """
@@ -65,7 +64,7 @@ class Simulation:
                     volfix_switch: int = 0, target_volume: int = 0, target2_volume: int = 0, epsilon: float = 0.00005,
                     observables: List[Observable] = [], include_mcmc_data: bool = True,
                     measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
-                    save_main: bool = False, save_thermal: bool = False, as_pickle: bool = True, saving_interval: int = 1,
+                    save_main: bool = False, save_thermal: bool = False, saving_interval: int = 1,
                     validity_check: bool = False,
             ):
             self.universe: Universe = universe
@@ -83,14 +82,13 @@ class Simulation:
             self.validity_check: bool = validity_check
             self.save_main: bool = save_main
             self.save_thermal: bool = save_thermal
-            self.as_pickle: bool = as_pickle
             self.saving_interval: int = saving_interval
             self.measuring_interval: int = measuring_interval
             self.measuring_thermal: bool = measuring_thermal
             self.measuring_main: bool = measuring_main
             self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
             self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
-            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k_steps) for obs in observables}
+            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k_steps, k0) for obs in observables}
             self.include_mcmc_data: bool = include_mcmc_data
             if self.include_mcmc_data:
                 self.successes: List[np.ndarray] = []
@@ -104,6 +102,12 @@ class Simulation:
         """
         for obs in self.observables.values():
             obs.clear_data()
+
+        # Measure at the start for thermal data
+        if self.measuring_thermal:
+            # Measure observables
+            for name, obs in self.observables.items():
+                obs.measure(self.get_observable_data(name))
 
         # Thermal sweeps
         if self.thermal_sweeps > 0:
@@ -149,7 +153,7 @@ class Simulation:
 
                 # Save the universe (optional)
                 if self.save_thermal and i % self.saving_interval == 0:
-                    self.universe.export_geometry(outfile + f"_thermal_{i}", as_pickle=self.as_pickle)
+                    self.universe.export_geometry(outfile + f"_thermal_{i}", k0=self.k0)
 
         if self.sweeps > 0:
             # Main sweeps
@@ -216,17 +220,17 @@ class Simulation:
 
                 # Save universe (optional)
                 if self.save_main and i % self.saving_interval == 0:
-                    self.universe.export_geometry(outfile + f"_main_{i}", as_pickle=self.as_pickle)
+                    self.universe.export_geometry(outfile + f"_main_{i}", k0=self.k0)
 
         # Make success rates, acceptance ratios and k3 values observables
         if self.include_mcmc_data:
-            self.observables['successes'] = Observable('successes', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['successes'] = Observable('successes', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
             self.observables['successes'].data = self.successes
-            self.observables['fails'] = Observable('fails', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['fails'] = Observable('fails', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
             self.observables['fails'].data = self.fails
-            self.observables['acceptance_ratios'] = Observable('acceptance_ratios', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['acceptance_ratios'] = Observable('acceptance_ratios', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
             self.observables['acceptance_ratios'].data = self.acceptance_ratios
-            self.observables['k3_values'] = Observable('k3_values', self.thermal_sweeps, self.sweeps, self.k_steps)
+            self.observables['k3_values'] = Observable('k3_values', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
             self.observables['k3_values'].data = self.k3_values
 
         # Save observables
@@ -672,7 +676,7 @@ if __name__ == "__main__":
                             target_volume=1000,
                             observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
                             include_mcmc_data=True,
-                            measuring_interval=1, measuring_thermal=True, measuring_main=True, save_main=False, save_thermal=False, as_pickle=True, saving_interval=1, validity_check=False)
+                            measuring_interval=1, measuring_thermal=True, measuring_main=True, save_main=False, save_thermal=False, saving_interval=1, validity_check=False)
     
     simulation.start('test_run/output')
     observed = simulation.observables

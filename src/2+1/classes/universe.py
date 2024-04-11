@@ -18,6 +18,8 @@ import resource
 import sys
 import pickle
 import gzip
+import ast
+import os
 
 max_rec = 0x100000
 
@@ -67,13 +69,7 @@ class Universe:
         self.vertex_neighbours = {}
         self.triangle_neighbours = {}
 
-        # If the file is a pickle file, load the universe from the pickle file
-        if geometry_infilename.endswith('.pkl.gz'):
-            with gzip.open(geometry_infilename, 'rb') as file:
-                state = pickle.load(file)
-            self.__dict__.update(state)
-        else:
-            self.initialise(geometry_infilename)
+        self.initialise(geometry_infilename)
 
     def initialise(self, geometry_infilename: str) -> bool:
         """
@@ -115,8 +111,8 @@ class Universe:
 
             # Calculate the number of time slices based on the maximum time
             self.n_slices = max_time + 1
-            self.slab_sizes = {i: 0 for i in range(self.n_slices)}
-            self.slice_sizes = {i: 0 for i in range(self.n_slices)}
+            self.slab_sizes = np.zeros(self.n_slices)
+            self.slice_sizes = np.zeros(self.n_slices)
 
             # Read the number of tetrahedra
             n3 = int(infile.readline()) 
@@ -1124,7 +1120,7 @@ class Universe:
         """
         # Make a dict for each time slice with the vertices
         scnums_per_slice = {t: [] for t in range(self.n_slices)}
-
+    
         for v in self.vertex_pool.get_objects():
             scnums_per_slice[v.time].append(v.scnum)
         
@@ -1274,39 +1270,67 @@ class Universe:
         print("Valid! :)")
         print("====================================================")
 
-    def export_geometry(self, geometry_outfilename: str = "output", as_pickle: bool = True) -> bool:
+    def export_geometry(self, geometry_outfilename: str = "output", as_pickle: bool = True, k0: float = -1) -> bool:
         """
         Export the geometry of the Universe.
+
+        Args:
+            geometry_outfilename (str): Name of the output file.
+            as_pickle (bool): Save as pickle or text file.
+            k0 (float): k0 value for the Universe.
         """
         self.update_geometry()
 
-        # Save as pickle 
-        if as_pickle:
-            with gzip.open('saved_universes/' + geometry_outfilename + '.pkl.gz', 'wb', compresslevel=1) as file:
-                pickle.dump(self.__dict__, file, protocol=pickle.HIGHEST_PROTOCOL)
+        if k0 >= 0:
+            pathname = f"saved_universes/k0={k0}/{geometry_outfilename}"
         else:
-            # Save as text
-            out = "0\n"
-            out += f"{self.vertex_pool.get_number_occupied()}\n"
+            pathname = f"saved_universes/{geometry_outfilename}"
 
-            for vertex in sorted(self.vertex_pool.get_objects(), key=lambda v: v.time):
-                out += f"{vertex.time}\n"
+        if not os.path.exists(os.path.dirname(pathname)):
+            os.makedirs(os.path.dirname(pathname))
 
-            out += f"{self.vertex_pool.get_number_occupied()}\n"
-            out += f"{self.tetrahedron_pool.get_number_occupied()}\n"
-            
-            for tetra in self.tetrahedron_pool.get_objects():
-                for vertex in tetra.get_vertices():
-                    out += f"{vertex.ID}\n"
-                for neighbour in tetra.get_tetras():
-                    out += f"{neighbour.ID}\n"
+        # Save as text
+        vertex_map = {}
+        int_v_map = [None] * len(self.vertex_pool.get_objects())
 
-            out += f"{self.tetrahedron_pool.get_number_occupied()}"
+        i = 0
+        for vertex in self.vertex_pool.get_objects():
+            vertex_map[vertex] = i
+            int_v_map[i] = vertex
+            i += 1
 
-            with open(f"saved_universes/{geometry_outfilename}.txt", "w") as file:
-                file.write(out + "\n")
+        tetra_map = {}
+        int_t_map = [None] * self.tetrahedron_pool.get_number_occupied()
 
-        print(f"Geometry exported to {geometry_outfilename}.")
+        i = 0
+        for tetra in self.tetrahedron_pool.get_objects():
+            tetra_map[tetra] = i
+            int_t_map[i] = tetra
+            i += 1
+
+        out = "1\n"  # indicating well-orderedness
+
+        out += str(self.vertex_pool.get_number_occupied()) + "\n"
+
+        for j in range(len(int_v_map)):
+            out += str(int_v_map[j].time) + "\n"
+
+        out += str(self.vertex_pool.get_number_occupied()) + "\n"
+
+        out += str(self.tetrahedron_pool.get_number_occupied()) + "\n"
+
+        for j in range(len(int_t_map)):
+            for v in int_t_map[j].get_vertices():
+                out += str(vertex_map[v]) + "\n"
+            for t in int_t_map[j].get_tetras():
+                out += str(tetra_map[t]) + "\n"
+
+        out += str(self.tetrahedron_pool.get_number_occupied())
+
+        with open(pathname + ".txt", "w") as file:
+            file.write(out + "\n")
+
+        print(f"Geometry exported to {pathname}.txt.")
 
         return True
 
@@ -1330,8 +1354,8 @@ class Universe:
 
 
 if __name__ == "__main__":
-    v = Universe(geometry_infilename="saved_universes/test_run/output_thermal_1.pkl.gz")
-    u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
+    # u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
+    u = Universe(geometry_infilename="/home/seda2102/epic/CDT/src/2+1/experiments/saved_universes/k0=6/outfile_k0=6_tswps=10_swps=0_kstps=1000_chain=0_thermal_10.txt")
     u.update_geometry()
     u.check_validity()
     u.log()

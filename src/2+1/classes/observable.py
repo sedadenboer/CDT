@@ -6,6 +6,8 @@
 # Description: The Observable class that forms the base class for all observables.
 
 import numpy as np
+import os
+from copy import deepcopy
 from typing import Any
 
 
@@ -19,12 +21,14 @@ class Observable:
         main_sweeps (int): The number of main sweeps.
         k_steps (int): The number of k steps.
         data (list): The data of the observable.
+        k0 (float): The k0 value.
     """
-    def __init__(self, observable: str, thermal_sweeps: int, main_sweeps: int, k_steps: int):
-        self.obserable = observable
+    def __init__(self, observable: str, thermal_sweeps: int, main_sweeps: int, k_steps: int, k0: float):
+        self.observable = observable
         self.thermal_sweeps = thermal_sweeps
         self.main_sweeps = main_sweeps
         self.k_steps = k_steps
+        self.k0 = k0
         self.data = []
 
     def measure(self, data_point: Any):
@@ -34,7 +38,7 @@ class Observable:
         Args:
             data_point (Any): The data point to measure.
         """
-        self.data.append(data_point)
+        self.data.append(deepcopy(data_point))
     
     def get_data(self) -> np.ndarray:
         """
@@ -58,4 +62,9 @@ class Observable:
         Args:
             filename (str): The filename to save the data to.
         """
-        np.save(filename, self.data)
+        # Create the directory if it does not exist
+        pathname = f'measurements/k0={self.k0}/'
+        if not os.path.exists(pathname):
+            os.makedirs(pathname)
+
+        np.save(pathname + filename, self.data)
