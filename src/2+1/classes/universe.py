@@ -16,9 +16,6 @@ from bag import Bag
 import numpy as np
 import resource
 import sys
-import pickle
-import gzip
-import ast
 import os
 
 max_rec = 0x100000
@@ -54,7 +51,6 @@ class Universe:
         
     def __init__(self, geometry_infilename: str, strictness: int = 3):
         self.strictness = strictness
-        self.debug_print = False
 
         # Initialize the pools
         self.vertex_pool = Pool(Universe.Capacity.VERTEX)
@@ -222,13 +218,6 @@ class Universe:
         if not tv.is_13():
             return False
 
-        if self.debug_print:
-            print(f"\nAdd changes t: {t.ID} and tv: {tv.ID}.")
-            print(f"t vertices: {[v.ID for v in t.get_vertices()]}.")
-            print(f"tv vertices: {[v.ID for v in tv.get_vertices()]}.")
-            print(f"t tetras: {[t.ID for t in t.get_tetras()]}.")
-            print(f"tv tetras: {[t.ID for t in tv.get_tetras()]}.")
-
         # Create a new vertex and update its cnum and scnum
         new_vertex = Vertex(time=time)
         self.vertex_pool.occupy(new_vertex)
@@ -318,9 +307,6 @@ class Universe:
         vt.cnum += 2
         vb.cnum += 2
 
-        if self.debug_print:
-            print(f"Added vertex {new_vertex.ID}.")
-            print(f"Added tetras: tn01.ID={tn01.ID}, tn12.ID={tn12.ID}, tn20.ID={tn20.ID}, tvn01.ID={tvn01.ID}, tvn12.ID={tvn12.ID}, tvn20.ID={tvn20.ID}.")
         return True
 
     def delete(self, vertex_id: int) -> bool:
@@ -363,13 +349,6 @@ class Universe:
         t20 = t01.get_tetra_opposite(v1)
         tv12 = tv01.get_tetra_opposite(v0)
         tv20 = tv01.get_tetra_opposite(v1)
-        
-        if self.debug_print:
-            print(f"\nDeleting vertex {vertex.ID}.")
-            print(f"t01: {t01.ID}, t12: {t12.ID}, t20: {t20.ID}, tv01: {tv01.ID}, tv12: {tv12.ID}, tv20: {tv20.ID}.")
-            print(f"t01 vertices: {[v.ID for v in t01.get_vertices()]}, tetras: {[t.ID for t in t01.get_tetras()]}.")
-            print(f"tv01 vertices: {[v.ID for v in tv01.get_vertices()]}, tetras: {[t.ID for t in tv01.get_tetras()]}.")
-            print(f"v0: {v0.ID}, v1: {v1.ID}, v2: {v2.ID}.")
 
         if not t01.is_31():
             return False
@@ -465,9 +444,6 @@ class Universe:
         self.slab_sizes[(time - 1 + self.n_slices) % self.n_slices] -= 2
         self.slice_sizes[time] -= 2
 
-        if self.debug_print:
-            print(f"Deleted vertex {vertex.ID}, and tetras t01: {t01.ID}, t12: {t12.ID}, t20: {t20.ID}, tv01: {tv01.ID}, tv12: {tv12.ID}, tv20: {tv20.ID}.")
-
         return True
 
     def flip(self, tetra012_id: int, tetra230_id: int) -> bool:
@@ -497,13 +473,6 @@ class Universe:
         tv012 = t012.get_tetras()[3]
         tv230 = t230.get_tetras()[3]
         
-        if self.debug_print:
-            print(f"\nTrying to flip t012: {t012.ID} and t230: {t230.ID}.")
-            print(f"t012 vertices: {[v.ID for v in t012.get_vertices()]}. tetras: {[t.ID for t in t012.get_tetras()]}.")
-            print(f"t230 vertices: {[v.ID for v in t230.get_vertices()]}. tetras: {[t.ID for t in t230.get_tetras()]}.")
-            print(f"tv012 {tv012.ID}, vertices: {[v.ID for v in tv012.get_vertices()]}. tetras: {[t.ID for t in tv012.get_tetras()]}.")
-            print(f"tv230 {tv230.ID}, vertices: {[v.ID for v in tv230.get_vertices()]}. tetras: {[t.ID for t in tv230.get_tetras()]}.")
-
         if not t012.is_31():
             return False
         if not t230.is_31():
@@ -607,13 +576,6 @@ class Universe:
         v0.set_tetra(tn013)
         v2.set_tetra(tn123)
 
-        if self.debug_print:
-            print(f"Flipped, updated tn013: {tn013.ID}, tn123: {tn123.ID}, tvn013: {tvn013.ID}, tvn123: {tvn123.ID}.")
-            print(f"vertices tn013: {[v.ID for v in tn013.get_vertices()]}. tetras tn013: {[t.ID for t in tn013.get_tetras()]}.")
-            print(f"vertices t123: {[v.ID for v in tn123.get_vertices()]}. tetras tn123: {[t.ID for t in tn123.get_tetras()]}.")
-            print(f"vertices tvn013: {[v.ID for v in tvn013.get_vertices()]}. tetras tvn013: {[t.ID for t in tvn013.get_tetras()]}.")
-            print(f"vertices tvn123: {[v.ID for v in tvn123.get_vertices()]}. tetras tvn123: {[t.ID for t in tvn123.get_tetras()]}.")
-
         return True
 
     def shift_u(self, tetra31_id: int, tetra22_id: int) -> bool:
@@ -633,9 +595,6 @@ class Universe:
         # Get the 31 and 22 tetra neighbours
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
-
-        if self.debug_print:
-            print(f"\nShifting t31: {t31.ID} and t22: {t22.ID}.")
 
         # Get the vertices that will be linked
         v0 = t31.get_vertex_opposite_tetra(t22)
@@ -711,9 +670,6 @@ class Universe:
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
 
-        if self.debug_print:
-            print(f"Shifted, created tn31: {tn31.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
-
         return True
     
     def ishift_u(self, tetra31_id: int, tetra22l_id: int, tetra22r_id: int) -> bool:
@@ -734,9 +690,6 @@ class Universe:
         t31 = self.tetrahedron_pool.get(tetra31_id)
         t22l = self.tetrahedron_pool.get(tetra22l_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
-        
-        if self.debug_print:
-            print(f"\niShifting t31: {t31.ID}, t22l: {t22l.ID} and t22r: {t22r.ID}.")
         
         # Get the vertices of the interior triangle
         v1 = t31.get_vertices()[3]
@@ -807,9 +760,6 @@ class Universe:
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
 
-        if self.debug_print:
-            print(f"iShifted, created tn31: {tn31.ID}, tn22: {tn22.ID}.")
-
         return True
 
     def shift_d(self, tetra13_id: int, tetra22_id: int) -> bool:
@@ -830,9 +780,6 @@ class Universe:
         t13 = self.tetrahedron_pool.get(tetra13_id)
         t22 = self.tetrahedron_pool.get(tetra22_id)
         t31 = t13.get_tetras()[0]
-
-        if self.debug_print:
-            print(f"\nShifting t13: {t13.ID} and t22: {t22.ID}.")
 
         # Get the vertices that will be linked
         v0 = t13.get_vertex_opposite_tetra(t22)
@@ -900,9 +847,6 @@ class Universe:
         self.tetrahedron_pool.free(t22.ID)
         self.tetras_22.remove(t22.ID)
 
-        if self.debug_print:
-            print(f"Shifted, created tn13: {tn13.ID}, tn22l: {tn22l.ID}, tn22r: {tn22r.ID}.")
-
         return True
 
     def ishift_d(self, tetra13_id: int, tetra22l_id: int, tetra22r_id: int) -> bool:
@@ -925,9 +869,6 @@ class Universe:
         t22l = self.tetrahedron_pool.get(tetra22l_id)
         t22r = self.tetrahedron_pool.get(tetra22r_id)
         t31 = t13.get_tetras()[0]
-        
-        if self.debug_print:
-            print(f"\niShifting t13: {t13.ID} and t22l: {t22l.ID} and t22r: {t22r.ID}.")
 
         # Get the vertices of the inner triangle
         v1 = t13.get_vertices()[0]
@@ -991,9 +932,6 @@ class Universe:
 
         time = tn13.get_vertices()[3].time
         self.slab_sizes[time] -= 1
-
-        if self.debug_print:
-            print(f"iShifted, created tn13: {tn13.ID}, tn22: {tn22.ID}.")
    
         return True
         

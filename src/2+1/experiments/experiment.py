@@ -12,7 +12,7 @@ def run_simulation(universe: Universe, chain: int, k0: float, k3: float):
         seed=chain,
         k0=k0,
         k3=k3,
-        tune_flag=False,
+        tune_flag=True,
         thermal_sweeps=100,
         sweeps=0,
         k_steps=1000000,
@@ -44,5 +44,6 @@ def run_parallel_simulations(universe: Universe, chain: int):
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    # universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    universe = Universe(geometry_infilename='../classes/initial_universes/output_g=0_T=10.txt', strictness=3)
     run_parallel_simulations(universe=universe, chain=0)

@@ -90,11 +90,11 @@ class Simulation:
             self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
             self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k_steps, k0) for obs in observables}
             self.include_mcmc_data: bool = include_mcmc_data
-            if self.include_mcmc_data:
-                self.successes: List[np.ndarray] = []
-                self.fails: List[np.darray] = []
-                self.acceptance_ratios = []
-                self.k3_values = []
+            # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
+            self.successes: List[np.ndarray] = []
+            self.fails: List[np.darray] = []
+            self.acceptance_ratios = []
+            self.k3_values = []
 
     def start(self, outfile: str = 'output'):
         """
@@ -371,47 +371,36 @@ class Simulation:
         if move == 1:
             add_ap = (n31 / (n0 + 1)) * np.exp(self.k0 - 4 * self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
-            if self.volfix_switch == 0:
-                if self.target_volume > 0:
-                    add_ap *= np.exp(
-                        4 * self.epsilon * (self.target_volume - n31 - 1))
-            else:
-                if self.target_volume > 0:
-                    add_ap *= np.exp(
-                        8 * self.epsilon * (self.target_volume - n3 - 2))
+            if self.volfix_switch == 0 and self.target_volume > 0:
+                add_ap *= np.exp(4 * self.epsilon * (self.target_volume - n31 - 1))
+            elif self.volfix_switch == 1 and self.target_volume > 0:
+                add_ap *= np.exp(8 * self.epsilon * (self.target_volume - n3 - 2))
                     
             return add_ap
         elif move == 2:
             delete_ap = ((n0 + 1) / n31) * np.exp(-self.k0 + 4 * self.k3)
 
             # If the target volume is specified, adjust AP according to the volume switch
-            if self.volfix_switch == 0:
-                if self.target_volume > 0:
-                    delete_ap *= np.exp(
-                        -4 * self.epsilon * (self.target_volume - n31 - 1))
-            else:
-                if self.target_volume > 0:
-                    delete_ap *= np.exp(
-                        -8 * self.epsilon * (self.target_volume - n3 - 2))
+            if self.volfix_switch == 0 and self.target_volume > 0:
+                delete_ap *= np.exp(-4 * self.epsilon * (self.target_volume - n31 - 1))
+            elif self.volfix_switch == 1 and self.target_volume > 0:
+                delete_ap *= np.exp(-8 * self.epsilon * (self.target_volume - n3 - 2))
     
             return delete_ap
         elif move == 3:
-            flip_ap = 1
-            return flip_ap
+            return 1
         elif move == 4:
             shift_ap = np.exp(-self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
-            if self.volfix_switch == 1:
-                if self.target_volume > 0:
-                    shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+            if self.volfix_switch == 1 and self.target_volume > 0:
+                shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
 
             return shift_ap
         elif move == 5:
             ishift_ap = np.exp(self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
-            if self.volfix_switch == 1:
-                if self.target_volume > 0:
-                    ishift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
+            if self.volfix_switch == 1 and self.target_volume > 0:
+                ishift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 -1))
 
             return ishift_ap
         
@@ -687,6 +676,7 @@ if __name__ == "__main__":
         measuring_thermal=True,
         save_thermal=True,
         saving_interval=100, # When to save geometry files
+        validity_check=False
     )
 
     simulation.start(

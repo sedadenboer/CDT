@@ -1,10 +1,10 @@
 from __future__ import annotations
-import numpy as np
 from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from vertex import Vertex
     from tetra import Tetrahedron
     from halfedge import HalfEdge
+import numpy as np
 
 
 class Tetrahedron:
@@ -193,7 +193,8 @@ class Tetrahedron:
         Returns:
             bool: True if the tetrahedron has the given vertex, False otherwise.
         """
-        return v in set(self.vs)
+        set_vs = set(self.vs)
+        return v in set_vs
     
     def check_neighbours_tetra(self, t: Tetrahedron) -> bool:
         """
@@ -205,7 +206,8 @@ class Tetrahedron:
         Returns:
             bool: True if the given tetrahedron is a neighbour of the tetrahedron, False otherwise.
         """
-        return t in set(self.tnbr)
+        set_tnbr = set(self.tnbr)
+        return t in set_tnbr
     
     def get_tetra_opposite(self, v: Vertex) -> Tetrahedron:
         """
@@ -216,12 +218,15 @@ class Tetrahedron:
 
         Returns:
             Tetrahedron: The tetrahedron opposite to the given vertex.
+
+        Raises:
+            ValueError: If the vertex is not in the tetrahedron.
         """
-        index = np.where(self.vs == v)[0]
-        if index.size > 0:
-            return self.tnbr[index[0]]
-        else:
-            print(f"No tetrahedron opposite to vertex {v.ID} in tetrahedron {self.ID}")
+        vertex_index = np.where(self.vs == v)[0]
+        if len(vertex_index) > 0:
+            return self.tnbr[vertex_index[0]]
+            
+        raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
     def get_vertex_opposite(self, v: Vertex) -> Vertex:
         """
@@ -242,7 +247,7 @@ class Tetrahedron:
             if tnv not in face:
                 return tnv
 
-        assert False, f"No vertex opposite to vertex {v.ID} in tetrahedron {self.ID}"
+        raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
     def get_vertex_opposite_tetra(self, tn: Tetrahedron) -> Vertex:
         """
@@ -253,13 +258,16 @@ class Tetrahedron:
 
         Returns:
             Vertex: The vertex opposite to the given tetrahedron.
+
+        Raises:
+            ValueError: If the given tetrahedron is not a neighbour of the tetrahedron.
         """
-        index = np.where(self.tnbr == tn)[0]
-        if index.size > 0:
-            return self.vs[index[0]]
-        else:
-            print(f"No vertex opposite to tetrahedron {tn.ID} in tetrahedron {self.ID}")
-    
+        tn_index = np.where(self.tnbr == tn)[0]
+        if len(tn_index) > 0:
+            return self.vs[tn_index[0]]
+            
+        raise ValueError(f"Tetrahedron {tn.ID} is not a neighbour of tetrahedron {self.ID}")
+
     def exchange_tetra_opposite(self, v: Vertex, tn: Tetrahedron) -> None:
         """
         Exchanges the tetrahedron opposite to the given vertex with the given tetrahedron.
@@ -269,10 +277,10 @@ class Tetrahedron:
             tn (Tetrahedron): The tetrahedron to exchange the opposite tetrahedron for.
         """
         index = np.where(self.vs == v)[0]
-        if index.size > 0:
+        if len(index) > 0:
             self.tnbr[index[0]] = tn
         else:
-            print(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
+            raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
     def log(self):
         """
