@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from tetra import Tetrahedron
     from halfedge import HalfEdge
 
+
 class Tetrahedron:
     """
     Represents a tetrahedron in the triangulation.
@@ -192,7 +193,7 @@ class Tetrahedron:
         Returns:
             bool: True if the tetrahedron has the given vertex, False otherwise.
         """
-        return np.any(self.vs == v)
+        return v in set(self.vs)
     
     def check_neighbours_tetra(self, t: Tetrahedron) -> bool:
         """
@@ -204,7 +205,7 @@ class Tetrahedron:
         Returns:
             bool: True if the given tetrahedron is a neighbour of the tetrahedron, False otherwise.
         """
-        return np.any(self.tnbr == t)
+        return t in set(self.tnbr)
     
     def get_tetra_opposite(self, v: Vertex) -> Tetrahedron:
         """
@@ -216,10 +217,10 @@ class Tetrahedron:
         Returns:
             Tetrahedron: The tetrahedron opposite to the given vertex.
         """
-        try:
-            index = np.where(self.vs == v)[0][0]
-            return self.tnbr[index]
-        except IndexError:
+        index = np.where(self.vs == v)[0]
+        if index.size > 0:
+            return self.tnbr[index[0]]
+        else:
             print(f"No tetrahedron opposite to vertex {v.ID} in tetrahedron {self.ID}")
 
     def get_vertex_opposite(self, v: Vertex) -> Vertex:
@@ -253,10 +254,10 @@ class Tetrahedron:
         Returns:
             Vertex: The vertex opposite to the given tetrahedron.
         """
-        try:
-            index = np.where(self.tnbr == tn)[0][0]
-            return self.vs[index]
-        except IndexError:
+        index = np.where(self.tnbr == tn)[0]
+        if index.size > 0:
+            return self.vs[index[0]]
+        else:
             print(f"No vertex opposite to tetrahedron {tn.ID} in tetrahedron {self.ID}")
     
     def exchange_tetra_opposite(self, v: Vertex, tn: Tetrahedron) -> None:
@@ -267,10 +268,10 @@ class Tetrahedron:
             v (Vertex): The vertex to exchange the tetrahedron opposite for.
             tn (Tetrahedron): The tetrahedron to exchange the opposite tetrahedron for.
         """
-        try:
-            index = np.where(self.vs == v)[0][0]
-            self.tnbr[index] = tn
-        except IndexError:
+        index = np.where(self.vs == v)[0]
+        if index.size > 0:
+            self.tnbr[index[0]] = tn
+        else:
             print(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
     def log(self):

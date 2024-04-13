@@ -1,10 +1,8 @@
 import sys
 sys.path.append('..')
-from typing import Dict, List
+from typing import List
 from classes.universe import Universe
 from classes.simulation import Simulation
-import pickle
-import gzip
 import multiprocessing as mp
 
 
@@ -15,7 +13,7 @@ def run_simulation(universe: Universe, chain: int, k0: float, k3: float):
         k0=k0,
         k3=k3,
         tune_flag=False,
-        thermal_sweeps=1000,
+        thermal_sweeps=100,
         sweeps=0,
         k_steps=1000000,
         target_volume=10000, # Without tune does not do anything
@@ -24,12 +22,12 @@ def run_simulation(universe: Universe, chain: int, k0: float, k3: float):
         measuring_interval=1, # Measure every sweep
         measuring_thermal=True,
         save_thermal=True,
-        saving_interval=100, # When to save geometry files
+        saving_interval=10, # When to save geometry files
     )
 
     simulation.start(
         outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={chain}'
-        )
+    )
 
     return simulation.observables
 

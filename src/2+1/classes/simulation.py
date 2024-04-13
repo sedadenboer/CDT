@@ -671,14 +671,28 @@ if __name__ == "__main__":
     universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     
-    simulation = Simulation(universe=universe, seed=42,
-                            k0=1, k3=1.1760799999999827, tune_flag=True, thermal_sweeps=50, sweeps=0, k_steps=10000,
-                            target_volume=1000,
-                            observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
-                            include_mcmc_data=True,
-                            measuring_interval=1, measuring_thermal=True, measuring_main=True, save_main=False, save_thermal=False, saving_interval=1, validity_check=False)
+    simulation = Simulation(
+        universe=universe,
+        seed=0,
+        k0=0,
+        k3=1.0417799999999955,
+        tune_flag=False,
+        thermal_sweeps=1,
+        sweeps=0,
+        k_steps=1000000,
+        target_volume=10000, # Without tune does not do anything
+        observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
+        include_mcmc_data=True,
+        measuring_interval=1, # Measure every sweep
+        measuring_thermal=True,
+        save_thermal=True,
+        saving_interval=100, # When to save geometry files
+    )
+
+    simulation.start(
+        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
+    )
     
-    simulation.start('test_run/output')
     observed = simulation.observables
 
     for name, obs in observed.items():
