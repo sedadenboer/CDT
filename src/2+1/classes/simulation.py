@@ -43,6 +43,7 @@ class Simulation:
         observables (List[str], optional): The list of observables to measure. Defaults to []. 
                                            Options are: 'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22',
                                            'slice_sizes', 'slab_sizes','curvature'.
+        include_mcmc_data (bool): If True, includes successes, fails, acceptance ratios and k3 values to observables. Defaults to True.
         measuring_interval (int, optional): The measuring interval. Defaults to 1.
         measuring_thermal (bool, optional): Flag to measure thermal data. Defaults to False.
         measuring_main (bool, optional): Flag to measure main data. Defaults to False.
@@ -657,24 +658,24 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='initial_universes/sample-g0-T3.cdt', strictness=3)
+    universe = Universe(geometry_infilename='../classes/initial_universes/initial_g=0_T=5.txt', strictness=3)
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     
     simulation = Simulation(
         universe=universe,
         seed=0,
         k0=0,
-        k3=1.0417799999999955,
-        tune_flag=False,
-        thermal_sweeps=1,
+        k3=0.7,
+        tune_flag=True,
+        thermal_sweeps=50,
         sweeps=0,
-        k_steps=1000000,
-        target_volume=10000, # Without tune does not do anything
+        k_steps=500000,
+        target_volume=5000, # Without tune does not do anything
         observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
-        measuring_thermal=True,
-        save_thermal=True,
+        measuring_thermal=False,
+        save_thermal=False,
         saving_interval=100, # When to save geometry files
         validity_check=False
     )
@@ -683,9 +684,9 @@ if __name__ == "__main__":
         outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
     )
     
-    observed = simulation.observables
+    # observed = simulation.observables
 
-    for name, obs in observed.items():
-        print(f"Observable: {name}")
-        print(f"Thermal: {obs.data}\n")
-        print()
+    # for name, obs in observed.items():
+    #     print(f"Observable: {name}")
+    #     print(f"Thermal: {obs.data}\n")
+    #     print()

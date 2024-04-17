@@ -1,82 +1,74 @@
-# main.py
-#
-# Author: Seda den Boer
-# Date: 29-02-2024
-#
-# Description: The main file for the 2+1D CDT simulation.
-
+import sys
+sys.path.append('..')
+import argparse
 from classes.simulation import Simulation
 from classes.universe import Universe
-from classes.observable import Observable
-import random
-import argparse
 
-# Initialize random number generator
-rng = random.Random(1)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--k0", type=float, help="Value for k0")
-    parser.add_argument("--k3", type=float, help="Initial value for k3")
-    parser.add_argument("--targetvolume", type=int, help="Value for target volume")
-    parser.add_argument("--target2volume", type=int, help="Value for target2 volume")
-    parser.add_argument("--volfixswitch", type=int, help="Value for volfix switch")
-    parser.add_argument("--seed", type=int, help="Value for seed")
-    parser.add_argument("--outputdir", type=str, help="Value for output directory")
-    parser.add_argument("--fileid", type=str, help="Value for file ID")
-    parser.add_argument("--thermalsweeps", type=int, help="Number of thermalization sweeps")
-    parser.add_argument("--measuresweeps", type=int, help="Number of measurement sweeps")
-    parser.add_argument("--ksteps", type=int, help="Value for k steps")
-    parser.add_argument("--strictness", type=int, help="Value for strictness")
-    parser.add_argument("--v1", type=int, help="Value for v1")
-    parser.add_argument("--v2", type=int, help="Value for v2")
-    parser.add_argument("--v3", type=int, help="Value for v3")
-    parser.add_argument("--infile", type=str, help="Value for input file")
-    parser.add_argument("--outfile", type=str, help="Value for output file")
+def main(args):
+    # Create an instance of the Universe class
+    universe = Universe(geometry_infilename='classes/initial_universes/initial_g=0_T=5.txt', strictness=3)
+    chain = 0
+    
+    # Create an instance of the Simulation class with the provided arguments
+    simulation = Simulation(
+        universe=universe,
+        seed=args.seed,
+        k0=args.k0,
+        k3=args.k3,
+        tune_flag=args.tune_flag,
+        thermal_sweeps=args.thermal_sweeps,
+        sweeps=args.sweeps,
+        k_steps=args.k_steps,
+        v1=args.v1,
+        v2=args.v2,
+        v3=args.v3,
+        volfix_switch=args.volfix_switch,
+        target_volume=args.target_volume,
+        target2_volume=args.target2_volume,
+        epsilon=args.epsilon,
+        observables=args.observables,
+        include_mcmc_data=args.include_mcmc_data,
+        measuring_interval=args.measuring_interval,
+        measuring_thermal=args.measuring_thermal,
+        measuring_main=args.measuring_main,
+        save_main=args.save_main,
+        save_thermal=args.save_thermal,
+        saving_interval=args.saving_interval,
+        validity_check=args.validity_check,
+    )
 
-    args = parser.parse_args()
-
-    k0 = args.k0 if args.k0 is not None else 0.0
-    k3_i = args.k3 if args.k3 is not None else 0.0
-    target_volume = args.targetvolume if args.targetvolume is not None else 0
-    target2_volume = args.target2volume if args.target2volume is not None else 0
-    volfix_switch = args.volfixswitch if args.volfixswitch is not None else 0
-    seed = args.seed if args.seed is not None else 0
-    output_dir = args.outputdir if args.outputdir is not None else ""
-    thermal_sweeps = args.thermalsweeps if args.thermalsweeps is not None else 0
-    sweeps = args.measuresweeps if args.measuresweeps is not None else 0
-    k_steps = args.ksteps if args.ksteps is not None else 0
-    strictness = args.strictness if args.strictness is not None else 0
-    v1 = args.v1 if args.v1 is not None else 1
-    v2 = args.v2 if args.v2 is not None else 1
-    v3 = args.v3 if args.v3 is not None else 1
-    in_file = args.infile if args.infile is not None else ""
-    out_file = args.outfile if args.outfile is not None else ""
-
-    # Set data directory for observables
-    Observable.set_data_dir(output_dir)
-
-    # Initialize Universe
-    universe = Universe(geometry_infilename=in_file, strictness=strictness, volfix_switch=volfix_switch)
-
-    print("\n\n#######################")
-    print("* * * Initialized * * *")
-    print("#######################\n\n")
-
-    #TODO Add observables
-
-    # Start simulation
-    simulation = Simulation(universe)
-    simulation.start(k0, k3_i, sweeps, thermal_sweeps, k_steps, target_volume, target2_volume, seed, out_file, v1, v2, v3)
-
-    print("\n\n####################")
-    print("* * * Finished * * *")
-    print("####################\n\n")
-
-    print(f"Number of tetrahedra: {simulation.universe.tetrahedron_pool.get_number_occupied()}\n")
-    print(f"Number of (3,1)-tetrahedra: {simulation.universe.tetras_31.get_number_occupied()}\n")
-    print(f"Number of vertices: {simulation.universe.vertex_pool.get_number_occupied()}\n")
+    # Start the simulation
+    simulation.start(
+        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={chain}'
+    )
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Run Monte Carlo simulation")
+    parser.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
+    parser.add_argument("--k0", type=float, default=1, help="Number of k0 moves to perform")
+    parser.add_argument("--k3", type=float, default=1, help="Number of k3 moves to perform")
+    parser.add_argument("--tune_flag", action="store_true", default=True, help="Flag to tune the k3 parameter")
+    parser.add_argument("--thermal_sweeps", type=int, default=10, help="Number of thermal sweeps to perform")
+    parser.add_argument("--sweeps", type=int, default=10, help="Number of sweeps to perform")
+    parser.add_argument("--k_steps", type=int, default=1000, help="Number of k steps to perform")
+    parser.add_argument("--v1", type=int, default=1, help="Frequency of the v1 move")
+    parser.add_argument("--v2", type=int, default=1, help="Frequency of the v2 move")
+    parser.add_argument("--v3", type=int, default=1, help="Frequency of the v3 move")
+    parser.add_argument("--volfix_switch", type=int, default=0, help="Volfix switch")
+    parser.add_argument("--target_volume", type=int, default=0, help="Target volume")
+    parser.add_argument("--target2_volume", type=int, default=0, help="Second target volume")
+    parser.add_argument("--epsilon", type=float, default=0.00005, help="Epsilon parameter")
+    parser.add_argument("--observables", nargs="+", default=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'], help="List of observables to measure")
+    parser.add_argument("--include_mcmc_data", action="store_true", default=True, help="Flag to include MCMC data in the observables)")
+    parser.add_argument("--measuring_interval", type=int, default=1, help="Measuring interval")
+    parser.add_argument("--measuring_thermal", action="store_true", default=True, help="Flag to measure thermal data")
+    parser.add_argument("--measuring_main", action="store_true", default=True, help="Flag to measure main data")
+    parser.add_argument("--save_main", action="store_true", default=True, help="Flag to save main data")
+    parser.add_argument("--save_thermal", action="store_true", default=True, help="Flag to save thermal data")
+    parser.add_argument("--saving_interval", type=int, default=1, help="Saving interval")
+    parser.add_argument("--validity_check", action="store_true", default=False, help="Flag to perform validity check")
+  
+    args = parser.parse_args()
+    main(args)
