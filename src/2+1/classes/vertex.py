@@ -6,7 +6,7 @@
 # Description: Defines a vertex in the triangulation.
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Dict
 if TYPE_CHECKING:
     from tetra import Tetrahedron
 import numpy as np
@@ -65,32 +65,36 @@ class Vertex:
         if v == self:
             return False
         
-        # Set to keep track of visited tetrahedra
-        visited: set[Tetrahedron] = set()
-        # Queue for breadth-first search
-        queue: List[Tetrahedron] = [self.tetra]
+        t = self.tetra
+
+        # Dictionary to keep track of triangles that have been checked
+        done: Dict[Vertex, bool] = {}
+        
+        # List of triangles to check
+        current: List[Tetrahedron] = [t]
+        # List of triangles to check next
+        next: List[Tetrahedron] = []
 
         # Breadth-first search to find neighboring vertices
-        while queue:
-            current_tetra = queue.pop(0)
+        while current:
+            # For each tetrahedron in the current list
+            for current_tetra in current:
+                # For each tetrahedron neighbor of the current tetrahedron
+                for neighbour_current_tetra in current_tetra.get_tetras():
+                    # If the current tetrahedron does not contain this vertex, skip
+                    if not neighbour_current_tetra.has_vertex(self):
+                        continue
 
-            # Skip if the tetrahedron has already been visited
-            if current_tetra in visited:
-                continue
+                    # If the tetrahedron contains the vertex, return True
+                    if neighbour_current_tetra not in done:
+                        if neighbour_current_tetra.has_vertex(v):
+                            return True
+                        
+                        done[neighbour_current_tetra] = True
+                        next.append(neighbour_current_tetra)
 
-            # Check if the current tetrahedron contains the vertex
-            if current_tetra.has_vertex(v):
-                return True
-
-            # Mark the current tetrahedron as visited
-            visited.add(current_tetra)
-
-            # Check the neighboring tetrahedra
-            for neighbour_tetra in current_tetra.get_tetras():
-                # Skip if the tetrahedron has already been visited
-                if neighbour_tetra not in visited:
-                    # Add the neighboring tetrahedron to the queue
-                    queue.append(neighbour_tetra)
+            current = next
+            next = []
 
         return False
 

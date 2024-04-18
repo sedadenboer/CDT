@@ -669,7 +669,7 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='../classes/initial_universes/initial_g=0_T=5.txt', strictness=3)
+    universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     
     simulation = Simulation(
@@ -678,10 +678,10 @@ if __name__ == "__main__":
         k0=0,
         k3=0.7,
         tune_flag=True,
-        thermal_sweeps=50,
+        thermal_sweeps=100,
         sweeps=0,
-        k_steps=500000,
-        target_volume=5000, # Without tune does not do anything
+        k_steps=300000,
+        target_volume=3000, # Without tune does not do anything
         observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
