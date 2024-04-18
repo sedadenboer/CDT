@@ -1208,7 +1208,7 @@ class Universe:
         print("Valid! :)")
         print("====================================================")
 
-    def export_geometry(self, geometry_outfilename: str = "output", as_pickle: bool = True, k0: float = -1) -> bool:
+    def export_geometry(self, geometry_outfilename: str = "output", k0: float = -1) -> bool:
         """
         Export the geometry of the Universe.
 

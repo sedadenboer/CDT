@@ -7,9 +7,10 @@ from classes.universe import Universe
 
 def main(args):
     # Create an instance of the Universe class
-    universe = Universe(geometry_infilename='classes/initial_universes/initial_g=0_T=5.txt', strictness=3)
+    T = 3
     chain = 0
-    
+    universe = Universe(geometry_infilename='classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+
     # Create an instance of the Simulation class with the provided arguments
     simulation = Simulation(
         universe=universe,
@@ -40,7 +41,7 @@ def main(args):
 
     # Start the simulation
     simulation.start(
-        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={chain}'
+        outfile=f'T{T}_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={chain}'
     )
 
 
