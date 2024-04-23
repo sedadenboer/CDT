@@ -26,7 +26,7 @@ def run_simulation(universe: Universe, chain: int, k0: float, k3: float):
         measuring_interval=1, # Measure every sweep
         measuring_thermal=True,
         save_thermal=True,
-        saving_interval=2, # When to save geometry files
+        saving_interval=100, # When to save geometry files
     )
 
     simulation.start(
@@ -37,22 +37,27 @@ def run_simulation(universe: Universe, chain: int, k0: float, k3: float):
 
 def run_parallel_simulations(universe: Universe, chain: int):
     k0_values: List[int] = [0, 1, 2, 3, 4, 5, 6, 7]
-    k3_init_guesses: List[float] = [0.7, 0.9, 1.1, 1.3, 1.5, 1.7 ,1.9, 2.1]
+    k3_init_guesses: List[float] = [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0, 2.2]
     args = [(universe, chain, k0_values[i], k3_init_guesses[i]) for i in range(len(k0_values))]
 
-    with mp.Pool(int(os.environ['SLURM_CPUS_PER_TASK'])) as pool:
+    # p = int(os.environ['SLURM_CPUS_PER_TASK'])
+    p = mp.cpu_count()
+    with mp.Pool(p) as pool:
         results = pool.starmap(run_simulation, args)
 
     return results
 
 def run_sequential(universe: Universe, chain: int):
-    k0_values: List[int] = [3, 4, 5, 6, 7]
-    k3_init_guesses: List[float] = [1.3, 1.5, 1.7, 1.9, 2.1]
+    k0_values: List[int] = [0, 1, 2, 3, 4, 5, 6]
+    k3_init_guesses: List[float] = [0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
 
     for i in range(len(k0_values)):
         run_simulation(universe, chain, k0_values[i], k3_init_guesses[i])
 
 
 if __name__ == "__main__":
+    start = time.time()
     universe = Universe(geometry_infilename='classes/initial_universes/sample-g0-T3.cdt', strictness=3)
     run_parallel_simulations(universe=universe, chain=0)
+    end = time.time()
+    print(end - start)

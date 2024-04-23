@@ -11,4 +11,5 @@ lib
 logs
 *.prof
 measurements
+src/2+1/visualisation
 networks

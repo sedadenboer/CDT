@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, List, Dict
 if TYPE_CHECKING:
     from tetra import Tetrahedron
 import numpy as np
-from numba import jit
 
 
 class Vertex:
