@@ -7,13 +7,16 @@
 # which is responsible for all procedures
 # related to the actual Monte Carlo simulation.
 
+
 import random
 import numpy as np
+import gc
 from universe import Universe
 from observable import Observable
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 if TYPE_CHECKING:
     from universe import Universe
+from helper_functions.helpers import total_size
 
 
 class Simulation:
@@ -89,7 +92,7 @@ class Simulation:
             self.measuring_main: bool = measuring_main
             self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
             self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
-            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k_steps, k0) for obs in observables}
+            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables}
             self.include_mcmc_data: bool = include_mcmc_data
             # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
             self.successes: List[np.ndarray] = []
@@ -101,11 +104,12 @@ class Simulation:
         """
         Starts the MCMC CDT 2+1 simulation.
         """
+
         for obs in self.observables.values():
             obs.clear_data()
 
-        # Measure at the start for thermal data
-        if self.measuring_thermal:
+        # Measure at the start 
+        if self.measuring_thermal or self.measuring_main:
             # Measure observables
             for name, obs in self.observables.items():
                 obs.measure(self.get_observable_data(name))
@@ -155,6 +159,15 @@ class Simulation:
                 # Save the universe (optional)
                 if self.save_thermal and i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", k0=self.k0)
+
+                # Print the sizes of the observables every 100 sweeps
+                if i % 100 == 0:
+                    for obs, data in self.observables.items():
+                        print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
+
+                # Garbage collection every 10 sweeps
+                if i % 10 == 0:
+                    gc.collect()
 
         if self.sweeps > 0:
             # Main sweeps
@@ -215,7 +228,7 @@ class Simulation:
 
                 # Measure observables
                 if self.measuring_main and i % self.measuring_interval == 0:
-                    # Measure observables
+                    # Measure observables             
                     for name, obs in self.observables.items():
                         obs.measure(self.get_observable_data(name))
 
@@ -223,21 +236,37 @@ class Simulation:
                 if self.save_main and i % self.saving_interval == 0:
                     self.universe.export_geometry(outfile + f"_main_{i}", k0=self.k0)
 
+                # Print the sizes of the observables every 100 sweeps
+                if i % 100 == 0:
+                    for obs, data in self.observables.items():
+                        print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
+
+                # Garbage collection every 10 sweeps
+                if i % 10 == 0:
+                    gc.collect()
+
         # Make success rates, acceptance ratios and k3 values observables
         if self.include_mcmc_data:
-            self.observables['successes'] = Observable('successes', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
+            self.observables['successes'] = Observable('successes', self.thermal_sweeps, self.sweeps, self.k0, self.measuring_interval)
             self.observables['successes'].data = self.successes
-            self.observables['fails'] = Observable('fails', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
+            self.observables['fails'] = Observable('fails', self.thermal_sweeps, self.sweeps, self.k0, self.measuring_interval)
             self.observables['fails'].data = self.fails
-            self.observables['acceptance_ratios'] = Observable('acceptance_ratios', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
+            self.observables['acceptance_ratios'] = Observable('acceptance_ratios', self.thermal_sweeps, self.sweeps,self.k0, self.measuring_interval)
             self.observables['acceptance_ratios'].data = self.acceptance_ratios
-            self.observables['k3_values'] = Observable('k3_values', self.thermal_sweeps, self.sweeps, self.k_steps, self.k0)
+            self.observables['k3_values'] = Observable('k3_values', self.thermal_sweeps, self.sweeps, self.k0, self.measuring_interval)
             self.observables['k3_values'].data = self.k3_values
 
         # Save observables
         if self.measuring_thermal or self.measuring_main:
             for name, obs in self.observables.items():
                 obs.save_data(outfile + f"_{name}")
+
+        # Print the sizes of the observables final
+        for obs, data in self.observables.items():
+            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
+            
+        # Final garbage collection
+        gc.collect()
 
     def get_observable_data(self, name: str) -> Any:
         """
@@ -335,6 +364,12 @@ class Simulation:
                 gathered_counts[move - 1] += 1
             else:
                 gathered_failed_counts[move - 1] += 1
+
+            # if move_num > 0:
+            #     print(f"Accepted move: {move_num}")
+            #     print(self.universe.slab_sizes)
+            #     print(self.universe.slice_sizes)
+            #     print()
 
         return gathered_counts, gathered_failed_counts
 
@@ -451,7 +486,7 @@ class Simulation:
             return False
         if vertex.scnum != 3:
             return False
-        
+
         # Perform the move
         return self.universe.delete(vertex_label)
 
@@ -667,25 +702,37 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
+    def trial(self):
+
+        for _ in range(10000):
+            attempted = self.attempt_move()
+            if attempted > 0:
+                self.universe.check_validity()
+
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    # universe.log()
     # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
-    
+    observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature']
+    # observables = ['n_vertices']
+    # observables = ['slice_sizes', 'slab_sizes']
     simulation = Simulation(
         universe=universe,
         seed=0,
         k0=0,
-        k3=0.7,
+        k3=0.8,
         tune_flag=True,
-        thermal_sweeps=100,
+        thermal_sweeps=10,
         sweeps=0,
-        k_steps=300000,
+        k_steps=30000,
         target_volume=3000, # Without tune does not do anything
-        observables=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'],
+        observables=observables,
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
-        measuring_thermal=False,
+        measuring_thermal=True,
+        measuring_main=True,
+        save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
         validity_check=False
@@ -694,10 +741,14 @@ if __name__ == "__main__":
     simulation.start(
         outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
     )
-    
-    # observed = simulation.observables
 
-    # for name, obs in observed.items():
-    #     print(f"Observable: {name}")
-    #     print(f"Thermal: {obs.data}\n")
-    #     print()
+    simulation.universe.check_validity()
+    # simulation.trial()
+    
+    simulation.universe.check_validity()
+    observed = simulation.observables
+
+    for name, obs in observed.items():
+        print(f"Observable: {name}")
+        print(f"Thermal: {obs.data}\n")
+        print()

@@ -645,9 +645,6 @@ class Universe:
         tn31.set_tetras(ta124, tn22r, tn22l, t31.get_tetras()[3])
         tn22l.set_tetras(ta123, tn22r, ta023, tn31)
         tn22r.set_tetras(ta134, tn22l, ta034, tn31)
-        
-        time = tn31.get_vertices()[0].time
-        self.slab_sizes[time] += 1
 
         t31.get_tetras()[3].exchange_tetra_opposite(t31.get_tetras()[3].get_vertices()[0], tn31)
         ta023.exchange_tetra_opposite(t31.get_vertex_opposite(v4), tn22l)
@@ -669,6 +666,9 @@ class Universe:
         tn31.get_vertices()[0].set_tetra(tn31)
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
+
+        time = tn31.time
+        self.slab_sizes[time] += 1
 
         return True
     
@@ -720,6 +720,8 @@ class Universe:
         if ta134.has_vertex(v2):
             return False
 
+        # print(f"Performed ishift_u move on tetra31: {tetra31_id}, tetra22l: {tetra22l_id}, and tetra22r: {tetra22r_id} at time {t31.time, t22l.time, t22r.time}.")
+
         # Create new tetrahedra
         tn31 = Tetrahedron()
         tn22 = Tetrahedron()
@@ -752,13 +754,13 @@ class Universe:
         self.tetras_22.remove(t22l.ID)
         self.tetras_22.remove(t22r.ID)
 
-        time = tn31.get_vertices()[0].time
-        self.slab_sizes[time] -= 1
-
         # Make sure the base vertices are updated with the new 31 tetra
         tn31.get_vertices()[0].set_tetra(tn31)
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
+
+        time = tn31.time
+        self.slab_sizes[time] -= 1
 
         return True
 
@@ -809,7 +811,7 @@ class Universe:
             return False
         if v0.check_vertex_neighbour(v1):
             return False
-
+        
         # Create new tetrahedra
         tn13 = Tetrahedron()
         tn22l = Tetrahedron()
@@ -828,9 +830,6 @@ class Universe:
         tn22l.set_tetras(ta023, tn13, ta123, tn22r)
         tn22r.set_tetras(ta034, tn13, ta134, tn22l)
 
-        time = t31.get_vertices()[0].time
-        self.slab_sizes[time] += 1
-
         # Update tetrahedra connectivity
         t13.get_tetras()[0].exchange_tetra_opposite(t13.get_tetras()[0].get_vertices()[3], tn13)
         ta023.exchange_tetra_opposite(t13.get_vertex_opposite(v4), tn22l)
@@ -846,6 +845,9 @@ class Universe:
         self.tetrahedron_pool.free(t13.ID)
         self.tetrahedron_pool.free(t22.ID)
         self.tetras_22.remove(t22.ID)
+
+        time = tn13.time
+        self.slab_sizes[time] += 1
 
         return True
 
@@ -930,9 +932,9 @@ class Universe:
         self.tetras_22.remove(t22l.ID)
         self.tetras_22.remove(t22r.ID)
 
-        time = tn13.get_vertices()[3].time
+        time = tn13.time
         self.slab_sizes[time] -= 1
-   
+
         return True
         
     def update_vertices(self):
@@ -1204,7 +1206,20 @@ class Universe:
                 assert self.vertex_pool.contains(n), f"Error: Vertex {v} has a missing neighbour. {n} not in vertex pool.\n{self.log()}"
                 # Make sure the neighbour also has the vertex as neighbour
                 assert self.vertex_neighbours[n].count(v) == 1, f"Error: Vertex {v} is not a neighbour of vertex {n}.\n{self.log()}"
-                
+        
+        # Check that number of tetrahedra in each timeslice is correct
+        counter_slices = [0] * self.n_slices
+        counter_slabs = [0] * self.n_slices
+
+        for tetra in self.tetrahedron_pool.get_objects():
+            counter_slabs[tetra.time] += 1
+            if tetra.is_31():
+                counter_slices[tetra.time] += 1
+        
+        for i in range(self.n_slices):
+            assert counter_slabs[i] == self.slab_sizes[i], f"Error: Number of tetrahedra in slab {i} is incorrect.\nCounted: {counter_slabs}, Expected: {self.slab_sizes}"
+            assert counter_slices[i] == self.slice_sizes[i], f"Error: Number of tetrahedra in slice {i} is incorrect.\nCounted: {counter_slices}, Expected: {self.slice_sizes}"
+
         print("Valid! :)")
         print("====================================================")
 

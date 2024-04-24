@@ -19,17 +19,17 @@ class Observable:
         observable (str): The name of the observable.
         thermal_sweeps (int): The number of thermal sweeps.
         main_sweeps (int): The number of main sweeps.
-        k_steps (int): The number of k steps.
         data (list): The data of the observable.
         k0 (float): The k0 value.
     """
-    def __init__(self, observable: str, thermal_sweeps: int, main_sweeps: int, k_steps: int, k0: float):
+    def __init__(self, observable: str, thermal_sweeps: int, main_sweeps: int, k0: float, measuring_interval: int):
         self.observable = observable
         self.thermal_sweeps = thermal_sweeps
         self.main_sweeps = main_sweeps
-        self.k_steps = k_steps
         self.k0 = k0
-        self.data = []
+        self.measuring_interval = measuring_interval
+        self.data = [None] * (((thermal_sweeps + main_sweeps) // measuring_interval) + 1)
+        self.next = 0
 
     def measure(self, data_point: Any):
         """
@@ -38,7 +38,12 @@ class Observable:
         Args:
             data_point (Any): The data point to measure.
         """
-        self.data.append(deepcopy(data_point))
+        if isinstance(data_point, (int, float, str)):
+            self.data[self.next] = data_point
+        else:
+            self.data[self.next] = deepcopy(data_point)
+        self.next += 1
+        assert self.next <= len(self.data)
     
     def get_data(self) -> np.ndarray:
         """
@@ -47,13 +52,13 @@ class Observable:
         Returns:
             np.ndarray: The observable data as a numpy array.
         """
-        return np.array(self.data)
+        return self.data
     
     def clear_data(self):
         """
         Clear the observable data.
         """
-        self.data.clear()
+        self.data = [None] * (((self.thermal_sweeps + self.main_sweeps) // self.measuring_interval) + 1)
 
     def save_data(self, filename: str):
         """
