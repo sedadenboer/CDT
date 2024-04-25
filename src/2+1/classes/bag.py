@@ -1,3 +1,10 @@
+# bag.py
+#
+# Author: Seda den Boer
+# Date: 17-02-2024
+# 
+# Description: Defines a bag of objects that can be added to and removed from.
+
 import random
 import numpy as np
 from typing import Optional, List

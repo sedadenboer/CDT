@@ -1,10 +1,17 @@
+# tetra.py
+#
+# Author: Seda den Boer
+# Date: 17-02-2024
+# 
+# Description: Defines a tetrahedron in the triangulation.
+
 from __future__ import annotations
 from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from vertex import Vertex
     from tetra import Tetrahedron
-    from halfedge import HalfEdge
 import numpy as np
+import weakref
 
 
 class Tetrahedron:
@@ -17,7 +24,6 @@ class Tetrahedron:
         type: The type of the tetrahedron.
         tnbr: The tetrahedron neighbours of the tetrahedron.
         vs: The vertices of the tetrahedron.
-        hes: The halfedges of the tetrahedron.
     """
 
     class Type:
@@ -31,7 +37,6 @@ class Tetrahedron:
         self.type: Union[Tetrahedron.Type, None] = None
         self.tnbr: np.ndarray = np.empty(4, dtype=object)
         self.vs: np.ndarray = np.empty(4, dtype=object)
-        self.hes: np.ndarray = np.empty(3, dtype=object)
 
     def to_string(self, t: Type) -> str:
         """
@@ -68,7 +73,7 @@ class Tetrahedron:
 
         assert v0.time != v3.time
         
-        self.vs = np.array([v0, v1, v2, v3], dtype=object)
+        self.vs = np.array([weakref.ref(v0), weakref.ref(v1), weakref.ref(v2), weakref.ref(v3)], dtype=object)
         self.time = v0.time
     
     def get_vertices(self) -> np.ndarray[Vertex]:
@@ -79,59 +84,7 @@ class Tetrahedron:
         Returns:
             np.ndarray[Vertex]: The vertices of the tetrahedron.
         """
-        return self.vs
-    
-    def set_half_edges(self, h0: HalfEdge, h1: HalfEdge, h2: HalfEdge):
-        """
-        Sets the halfedges of the tetrahedron.
-
-        Args:
-            h0 (HalfEdge): First halfedge.
-            h1 (HalfEdge): Second halfedge.
-            h2 (HalfEdge): Third halfedge.
-        """
-        self.hes = np.array([h0, h1, h2], dtype=object)
-    
-    def get_half_edges(self) -> np.ndarray[HalfEdge]:
-        """
-        Returns the halfedges of the tetrahedron.
-
-        Returns:
-            np.ndarray[HalfEdge]: The halfedges of the tetrahedron.
-        """
-        return self.hes
-
-    def get_half_edge_from(self, v: Vertex) -> HalfEdge:
-        """
-        Returns the halfedge of the tetrahedron that starts at the given vertex.
-
-        Args:
-            v (Vertex): The vertex to start the halfedge from.
-
-        Returns:
-            HalfEdge: The halfedge of the tetrahedron that starts at the given vertex.
-        """
-        for he in self.hes:
-            if he.vs[0] == v:
-                return he
-            
-        return None
-    
-    def get_half_edge_to(self, v: Vertex) -> HalfEdge:
-        """
-        Returns the halfedge of the tetrahedron that ends at the given vertex.
-
-        Args:
-            v (Vertex): The vertex to end the halfedge at.
-
-        Returns:
-            HalfEdge: The halfedge of the tetrahedron that ends at the given vertex.
-        """
-        for he in self.hes:
-            if he.get_vertices()[1] == v:
-                return he
-            
-        return None
+        return np.array([v() for v in self.vs])
     
     def set_tetras(self, t0: Tetrahedron, t1: Tetrahedron, t2: Tetrahedron, t3: Tetrahedron):
         """
@@ -145,7 +98,7 @@ class Tetrahedron:
             t2 (Tetrahedron): Third tetrahedron.
             t3 (Tetrahedron): Fourth tetrahedron.
         """
-        self.tnbr = np.array([t0, t1, t2, t3], dtype=object)
+        self.tnbr = np.array([weakref.ref(t0), weakref.ref(t1), weakref.ref(t2), weakref.ref(t3)], dtype=object)
 
     def get_tetras(self) -> np.ndarray[Tetrahedron]:
         """
@@ -154,7 +107,7 @@ class Tetrahedron:
         Returns:
             np.ndarray[Tetrahedron]: The tetrahedron neighbours of the tetrahedron.
         """
-        return self.tnbr
+        return np.array([t() for t in self.tnbr])
     
     def is_31(self) -> bool:
         """
@@ -193,7 +146,7 @@ class Tetrahedron:
         Returns:
             bool: True if the tetrahedron has the given vertex, False otherwise.
         """
-        set_vs = set(self.vs)
+        set_vs = set(ref() for ref in self.vs)
         return v in set_vs
     
     def check_neighbours_tetra(self, t: Tetrahedron) -> bool:
@@ -206,7 +159,7 @@ class Tetrahedron:
         Returns:
             bool: True if the given tetrahedron is a neighbour of the tetrahedron, False otherwise.
         """
-        set_tnbr = set(self.tnbr)
+        set_tnbr = set(ref() for ref in self.tnbr)
         return t in set_tnbr
     
     def get_tetra_opposite(self, v: Vertex) -> Tetrahedron:
@@ -222,9 +175,9 @@ class Tetrahedron:
         Raises:
             ValueError: If the vertex is not in the tetrahedron.
         """
-        vertex_index = np.where(self.vs == v)[0]
+        vertex_index = np.where(self.vs == weakref.ref(v))[0]
         if len(vertex_index) > 0:
-            return self.tnbr[vertex_index[0]]
+            return self.tnbr[vertex_index[0]]()
             
         raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
@@ -240,12 +193,12 @@ class Tetrahedron:
         """
         tn = self.get_tetra_opposite(v)
 
-        face = set(self.vs)
+        face = set(ref() for ref in self.vs)
         face.remove(v)
 
         for tnv in tn.vs:
-            if tnv not in face:
-                return tnv
+            if tnv() not in face:
+                return tnv()
 
         raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
@@ -262,9 +215,9 @@ class Tetrahedron:
         Raises:
             ValueError: If the given tetrahedron is not a neighbour of the tetrahedron.
         """
-        tn_index = np.where(self.tnbr == tn)[0]
+        tn_index = np.where(self.tnbr == weakref.ref(tn))[0]
         if len(tn_index) > 0:
-            return self.vs[tn_index[0]]
+            return self.vs[tn_index[0]]()
             
         raise ValueError(f"Tetrahedron {tn.ID} is not a neighbour of tetrahedron {self.ID}")
 
@@ -276,9 +229,9 @@ class Tetrahedron:
             v (Vertex): The vertex to exchange the tetrahedron opposite for.
             tn (Tetrahedron): The tetrahedron to exchange the opposite tetrahedron for.
         """
-        index = np.where(self.vs == v)[0]
+        index = np.where(self.vs == weakref.ref(v))[0]
         if len(index) > 0:
-            self.tnbr[index[0]] = tn
+            self.tnbr[index[0]] = weakref.ref(tn)
         else:
             raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
@@ -287,6 +240,6 @@ class Tetrahedron:
         Prints information about the tetrahedron.
         """
         print(f"Tetrahedron {self.ID} @ {self.time} with type {self.to_string(self.type)}")
-        print(f"Vertices: {[v.ID for v in self.vs]}, time: {[v.time for v in self.vs]}")
-        print(f"Neighbours: {[t.ID for t in self.tnbr]}, time: {[t.time for t in self.tnbr]}")
+        print(f"Vertices: {[v().ID for v in self.vs]}, time: {[v().time for v in self.vs]}")
+        print(f"Neighbours: {[t().ID for t in self.tnbr]}, time: {[t().time for t in self.tnbr]}")
         print()

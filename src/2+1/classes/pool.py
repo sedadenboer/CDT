@@ -1,7 +1,14 @@
+# pool.py
+#
+# Author: Seda den Boer
+# Date: 17-02-2024
+# 
+# Description: Defines a pool of indices that can be used to create and destroy objects.
+
 from __future__ import annotations
 import numpy as np
 import random
-from typing import TYPE_CHECKING, List, Optional, Set, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 if TYPE_CHECKING:
     from vertex import Vertex
     from triangle import Triangle

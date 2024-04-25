@@ -8,7 +8,6 @@ from classes.universe import Universe
 def main(args):
     # Create an instance of the Universe class
     T = 3
-    chain = 1
     universe = Universe(geometry_infilename='classes/initial_universes/sample-g0-T3.cdt', strictness=3)
 
     # Create an instance of the Simulation class with the provided arguments

@@ -7,7 +7,6 @@
 # which is responsible for all procedures
 # related to the actual Monte Carlo simulation.
 
-
 import random
 import numpy as np
 import gc
@@ -99,12 +98,14 @@ class Simulation:
             self.fails: List[np.darray] = []
             self.acceptance_ratios = []
             self.k3_values = []
-
+            # Calculate cumulative frequencies
+            self.cum_freqs = np.cumsum(self.move_freqs)
+            self.freq_total = sum(self.move_freqs)
+    
     def start(self, outfile: str = 'output'):
         """
         Starts the MCMC CDT 2+1 simulation.
         """
-
         for obs in self.observables.values():
             obs.clear_data()
 
@@ -142,11 +143,10 @@ class Simulation:
                 if self.tune_flag:
                     self.tune()
 
-                # Update geometry
-                self.prepare()
-
                 # Check if the universe geometry is valid
                 if self.validity_check:
+                    # Update geometry
+                    self.prepare()
                     self.universe.log()
                     self.universe.check_validity()
                 
@@ -217,12 +217,11 @@ class Simulation:
                             if s == self.target2_volume:
                                 hit = True
                                 break
-                
-                # Update geometry 
-                self.prepare()
 
                 # Check if the universe geometry is valid
                 if self.validity_check:
+                    # Update geometry 
+                    self.prepare()
                     self.universe.log()
                     self.universe.check_validity()
 
@@ -263,10 +262,7 @@ class Simulation:
 
         # Print the sizes of the observables final
         for obs, data in self.observables.items():
-            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
-            
-        # Final garbage collection
-        gc.collect()
+            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")   
 
     def get_observable_data(self, name: str) -> Any:
         """
@@ -299,7 +295,7 @@ class Simulation:
             return self.universe.get_curvature_profile()
         else:
             raise ValueError(f"Observable {name} not found.")
-        
+    
     def attempt_move(self) -> int:
         """
         Attempt a move based on the move frequencies.
@@ -308,24 +304,20 @@ class Simulation:
             int: The move number. 
             1 for add, 2 for delete, 3 for flip, 4 for shift, 5 for inverse shift.
             Negative numbers indicate failed moves.
-        """        
-        # Calculate cumulative frequencies
-        cum_freqs = np.cumsum(self.move_freqs)
-        freq_total = sum(self.move_freqs)
-
+        """  
         # Generate a random number to select a move pair
-        move = self.rng.randint(0, freq_total)
+        move = self.rng.randint(0, self.freq_total)
 
-        if move < cum_freqs[0]:
+        if move < self.cum_freqs[0]:
             # Add or delete move
             if self.rng.randint(0, 1) == 0:
                 return 1 if self.move_add() else -1
             else:
                 return 2 if self.move_delete() else -2
-        elif move < cum_freqs[1]:
+        elif self.cum_freqs[0] <= move and move < self.cum_freqs[1]:
             # Flip move
             return 3 if self.move_flip() else -3
-        else:
+        elif self.cum_freqs[1] <= move:
             # Shift or inverse shift move
             if self.rng.randint(0, 1) == 0:
                 # Shift (3,1) or (1,3) move
@@ -339,7 +331,9 @@ class Simulation:
                     return 5 if self.move_ishift_u() else -5
                 else:
                     return 5 if self.move_ishift_d() else -5
-                
+ 
+        return 0
+
     def perform_sweep(self, n: int) -> Tuple[List[int], List[int]]:
         """
         Perform a sweep of the simulation.
@@ -365,11 +359,8 @@ class Simulation:
             else:
                 gathered_failed_counts[move - 1] += 1
 
-            # if move_num > 0:
-            #     print(f"Accepted move: {move_num}")
-            #     print(self.universe.slab_sizes)
-            #     print(self.universe.slice_sizes)
-            #     print()
+            del move_num
+            del move
 
         return gathered_counts, gathered_failed_counts
 
@@ -402,7 +393,6 @@ class Simulation:
         # Get relevant variables 
         n31 = self.universe.tetras_31.get_number_occupied()
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
-        n0 = self.universe.vertex_pool.get_number_occupied()
 
         # Add
         if move == 1:
@@ -661,7 +651,7 @@ class Simulation:
         """
         Prepares the universe for measurements in a sweep by updating the geometry.
         """
-        self.universe.update_geometry()
+        self.universe.update_vertices()
 
     def tune(self):
         """
@@ -704,7 +694,7 @@ class Simulation:
 
     def trial(self):
 
-        for _ in range(10000):
+        for _ in range(10):
             attempted = self.attempt_move()
             if attempted > 0:
                 self.universe.check_validity()
@@ -712,11 +702,8 @@ class Simulation:
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
-    # universe.log()
-    # universe_T32 = Universe(geometry_infilename='initial_universes/output_g=0_T=32.txt', strictness=3)
     observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature']
-    # observables = ['n_vertices']
-    # observables = ['slice_sizes', 'slab_sizes']
+
     simulation = Simulation(
         universe=universe,
         seed=0,
@@ -743,7 +730,7 @@ if __name__ == "__main__":
     )
 
     simulation.universe.check_validity()
-    # simulation.trial()
+    simulation.trial()
     
     simulation.universe.check_validity()
     observed = simulation.observables

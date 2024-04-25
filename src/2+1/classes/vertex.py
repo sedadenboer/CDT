@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, List, Dict
 if TYPE_CHECKING:
     from tetra import Tetrahedron
 import numpy as np
+import weakref
 
 
 class Vertex:
@@ -40,16 +41,16 @@ class Vertex:
         # Make sure that the vertex is in the base of the tetrahedron
         assert t.has_vertex(self)
         assert np.array_equal(t.get_vertices(), self) != 3
-        self.tetra = t
+        self.tetra = weakref.ref(t)
 
-    def get_tetra(self) -> int:
+    def get_tetra(self) -> Tetrahedron:
         """
         Returns an (3,1)-tetrahedron that contains this vertex in its base.
 
         Returns:
-            int: A (3,1)-tetrahedron that contains this vertex in its base.
+            Tetrahedron: A (3,1)-tetrahedron that contains this vertex in its base.
         """
-        return self.tetra
+        return self.tetra() if self.tetra else None
 
     def check_vertex_neighbour(self, v: Vertex) -> bool:
         """
@@ -64,7 +65,7 @@ class Vertex:
         if v == self:
             return False
         
-        t = self.tetra
+        t = self.tetra()
 
         # Dictionary to keep track of triangles that have been checked
         done: Dict[Vertex, bool] = {}
@@ -94,7 +95,7 @@ class Vertex:
 
             current = next
             next = []
-
+    
         return False
 
     def log(self) -> str:
@@ -104,4 +105,5 @@ class Vertex:
         Returns:
             str: A string representation of the vertex.
         """
-        return f"Vertex {self.ID} @ time {self.time} with cnum {self.cnum} and scnum {self.scnum}."
+        tetra = self.tetra()
+        return f"Vertex {self.ID} @ time {self.time} with cnum {self.cnum} and scnum {self.scnum}. Tetrahedron: {tetra}"

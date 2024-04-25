@@ -8,21 +8,11 @@
 from __future__ import annotations
 from typing import Any, List, Dict
 from vertex import Vertex
-from halfedge import HalfEdge
-from triangle import Triangle
 from tetra import Tetrahedron
 from pool import Pool
 from bag import Bag
 import numpy as np
-import resource
-import sys
 import os
-
-max_rec = 0x100000
-
-# May segfault without this line. 0x100 is a guess at the size of each stack frame.
-resource.setrlimit(resource.RLIMIT_STACK, [0x100 * max_rec, resource.RLIM_INFINITY])
-sys.setrecursionlimit(max_rec)
 
 
 class Universe:
@@ -54,8 +44,6 @@ class Universe:
 
         # Initialize the pools
         self.vertex_pool = Pool(Universe.Capacity.VERTEX)
-        self.halfedge_pool = Pool(Universe.Capacity.HALFEDGE)
-        self.triangle_pool = Pool(Universe.Capacity.TRIANGLE)
         self.tetrahedron_pool = Pool(Universe.Capacity.TETRAHEDRON)
 
         # Initialize the bags
@@ -63,7 +51,6 @@ class Universe:
         self.tetras_22 = Bag(Universe.Capacity.TETRAHEDRON)
 
         self.vertex_neighbours = {}
-        self.triangle_neighbours = {}
 
         self.initialise(geometry_infilename)
 
@@ -117,7 +104,7 @@ class Universe:
             # Make n3 tetrahedra
             for _ in range(n3):
                 tetra = Tetrahedron()
-                tetra.ID = self.tetrahedron_pool.occupy(tetra)
+                self.tetrahedron_pool.occupy(tetra)
 
             # Add vertices and neighboring tetrahedra to the tetrahedra
             for tetra in self.tetrahedron_pool.get_objects():
@@ -144,7 +131,11 @@ class Universe:
                     self.slice_sizes[tetra.get_vertices()[0].time] += 1
                 elif tetra.is_22():
                     self.tetras_22.add(tetra.ID)
-    
+
+                # Clear memory
+                del tetra_vs
+                del tetra_ts
+                
             # Check consistency of the number of tetrahedra
             line = int(infile.readline())
             if line != n3:
@@ -195,7 +186,7 @@ class Universe:
             
             vertex.cnum = cnum
             vertex.scnum = scnum
-                
+        
         return True
 
     def add(self, tetra31_id: int) -> bool:
@@ -291,6 +282,8 @@ class Universe:
         self.tetrahedron_pool.free(t.ID)
         self.tetras_31.remove(t.ID)
         self.tetrahedron_pool.free(tv.ID)
+        del t
+        del tv
 
         # Update the vertices with the tetrahedra they are part of, and their cnum and scnum
         new_vertex.set_tetra(tn01)
@@ -438,7 +431,14 @@ class Universe:
         self.tetrahedron_pool.free(tv01.ID)
         self.tetrahedron_pool.free(tv12.ID)
         self.tetrahedron_pool.free(tv20.ID)
-        
+        del vertex
+        del t01
+        del t12
+        del t20
+        del tv01
+        del tv12
+        del tv20
+
         # Update the sizes
         self.slab_sizes[time] -= 2
         self.slab_sizes[(time - 1 + self.n_slices) % self.n_slices] -= 2
@@ -661,6 +661,8 @@ class Universe:
         self.tetrahedron_pool.free(t22.ID)
         self.tetras_31.remove(t31.ID)
         self.tetras_22.remove(t22.ID)
+        del t31
+        del t22
 
         # Make sure the vertices are updated with the new 31 tetra
         tn31.get_vertices()[0].set_tetra(tn31)
@@ -720,8 +722,6 @@ class Universe:
         if ta134.has_vertex(v2):
             return False
 
-        # print(f"Performed ishift_u move on tetra31: {tetra31_id}, tetra22l: {tetra22l_id}, and tetra22r: {tetra22r_id} at time {t31.time, t22l.time, t22r.time}.")
-
         # Create new tetrahedra
         tn31 = Tetrahedron()
         tn22 = Tetrahedron()
@@ -753,6 +753,9 @@ class Universe:
         self.tetras_31.remove(t31.ID)
         self.tetras_22.remove(t22l.ID)
         self.tetras_22.remove(t22r.ID)
+        del t31
+        del t22l
+        del t22r
 
         # Make sure the base vertices are updated with the new 31 tetra
         tn31.get_vertices()[0].set_tetra(tn31)
@@ -845,6 +848,8 @@ class Universe:
         self.tetrahedron_pool.free(t13.ID)
         self.tetrahedron_pool.free(t22.ID)
         self.tetras_22.remove(t22.ID)
+        del t13
+        del t22
 
         time = tn13.time
         self.slab_sizes[time] += 1
@@ -931,12 +936,15 @@ class Universe:
         self.tetrahedron_pool.free(t22r.ID)
         self.tetras_22.remove(t22l.ID)
         self.tetras_22.remove(t22r.ID)
+        del t13
+        del t22l
+        del t22r
 
         time = tn13.time
         self.slab_sizes[time] -= 1
 
         return True
-        
+    
     def update_vertices(self):
         """
         Update the vertices of the Universe.
@@ -945,103 +953,24 @@ class Universe:
         self.vertex_neighbours.clear()
 
         # First make sets for each vertex 
-        tetras_containing_vertex = {}
-        vertex_spacelinks = {}
         vertex_links = {}
 
         for vertex in self.vertex_pool.get_objects():
-            tetras_containing_vertex[vertex.ID] = set()
-            vertex_spacelinks[vertex.ID] = set()
             vertex_links[vertex.ID] = set()
 
         # Fill the sets
         for tetra in self.tetrahedron_pool.get_objects():
             for vertex in tetra.get_vertices():
-                # Save the tetrahedra that contain the vertex
-                tetras_containing_vertex[vertex.ID].add(tetra.ID)
-
+              
                 # Save the spacelinks of the vertex
                 for neighbour in tetra.get_vertices():
-                    # Check if the neighbour is not the vertex itself
-                    if neighbour.ID != vertex.ID:
-                        # Spacelinks if the neighbour has the same time
-                        if neighbour.time == vertex.time:
-                            vertex_spacelinks[vertex.ID].add(neighbour.ID)
-
                         # Timelinks
                         vertex_links[vertex.ID].add(neighbour.ID)
 
         # Convert sets to lists
-        tetras_containing_vertex = {vertex: list(tetras) for vertex, tetras in tetras_containing_vertex.items()}
-        vertex_spacelinks = {vertex: list(space_neighbours) for vertex, space_neighbours in vertex_spacelinks.items()}
-        vertex_links = {vertex: list(neighbours) for vertex, neighbours in vertex_links.items()}
+        self.vertex_neighbours = {vertex: list(neighbours) for vertex, neighbours in vertex_links.items()}
+        del vertex_links
 
-        self.vertex_neighbours = vertex_links
-
-    def update_triangles(self):
-        """
-        Update the triangles of the Universe.
-        """
-        # Free all triangles in the pool
-        self.triangle_pool.free_all()
-        assert self.triangle_pool.get_number_occupied() == 0
-        
-        # Get tetras31 
-        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.get_used_indices()]
-
-        for tetra in tetras31_objs:
-            # Create a new triangle
-            triangle = Triangle()
-            self.triangle_pool.occupy(triangle)
-            
-            # Triangle is defined by base vertices of the tetrahedron
-            triangle.set_vertices(tetra.get_vertices()[0], tetra.get_vertices()[1], tetra.get_vertices()[2])
-            triangle.set_half_edges(tetra.get_half_edges()[0], tetra.get_half_edges()[1], tetra.get_half_edges()[2])
-
-            # Set the triangle of the tetrahedron
-            for he in tetra.get_half_edges():
-                he.set_triangle(triangle)
-        
-        # for triangle in self.triangle_pool.get_objects():
-        #     triangle.set_triangle_neighbours(triangle.get_half_edges()[0].get_adjacent().get_triangle(),
-        #                                      triangle.get_half_edges()[1].get_adjacent().get_triangle(),
-        #                                      triangle.get_half_edges()[2].get_adjacent().get_triangle())
-
-        #     self.triangle_neighbours[triangle.ID] = triangle.get_triangle_neighbours()
-
-    def update_halfedges(self):
-        """
-        Update the halfedges of the Universe.
-        """
-        self.halfedge_pool.free_all()
-        assert self.halfedge_pool.get_number_occupied() == 0
-
-        # Get tetras31
-        tetras31_objs = [self.tetrahedron_pool.get(i) for i in self.tetras_31.get_used_indices()]
-
-        # Create halfedges for each tetrahedron
-        for tetra in tetras31_objs:
-            halfedge_triples = []
-
-            # Three halfedges for each tetrahedron
-            for i in range(self.Constants.N_HALFEDGES_TETRA):
-                he = HalfEdge()
-                self.halfedge_pool.occupy(he)
-
-                # Set the vertices and the tetrahedron of the halfedges
-                he.set_vertices(tetra.get_vertices()[i], tetra.get_vertices()[(i + 1) % 3])
-                he.set_tetra(tetra)
-                halfedge_triples.append(he)
-
-            tetra.set_half_edges(halfedge_triples[0], halfedge_triples[1], halfedge_triples[2])
-
-            # Connect the halfedges in a circular list
-            for i in range(self.Constants.N_HALFEDGES_TETRA):
-                halfedge_triples[i].set_next(halfedge_triples[(i + 1) % 3])
-                halfedge_triples[i].set_previous(halfedge_triples[(i + 2) % 3])
-        
-        # TODO: Set the adjacent opposite halfedges
-                    
     def get_total_size(self) -> int:
         """
         Get the total size of the triangulation.
@@ -1065,14 +994,6 @@ class Universe:
             scnums_per_slice[v.time].append(v.scnum)
         
         return scnums_per_slice
-
-    def update_geometry(self):
-        """
-        Update the geometry of the Universe.
-        """
-        self.update_vertices()
-        # self.update_halfedges()
-        # self.update_triangles()
 
     def has_duplicate_lists(self, list_of_lists: List[List[Any]]) -> bool:
         """
@@ -1232,8 +1153,6 @@ class Universe:
             as_pickle (bool): Save as pickle or text file.
             k0 (float): k0 value for the Universe.
         """
-        self.update_geometry()
-
         if k0 >= 0:
             pathname = f"saved_universes/k0={k0}/{geometry_outfilename}"
         else:
@@ -1291,7 +1210,7 @@ class Universe:
         """
         Log the Universe.
         """
-        self.update_geometry()
+        self.update_vertices()
         print("====================================================")
         print(f"Universe with {self.get_total_size()} vertices and {self.tetrahedron_pool.get_number_occupied()} tetrahedra.")
         print("----------------------------------------------------")
