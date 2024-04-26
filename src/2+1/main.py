@@ -7,8 +7,8 @@ from classes.universe import Universe
 
 def main(args):
     # Create an instance of the Universe class
-    T = 3
-    universe = Universe(geometry_infilename='classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    T = args.T
+    universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}', strictness=3)
 
     # Create an instance of the Simulation class with the provided arguments
     simulation = Simulation(
@@ -46,6 +46,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Monte Carlo simulation")
+    parser.add_argument("--T", type=int, default=3, help="Number of time slices of the universe")
     parser.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     parser.add_argument("--k0", type=float, default=1, help="Number of k0 moves to perform")
     parser.add_argument("--k3", type=float, default=1, help="Number of k3 moves to perform")

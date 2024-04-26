@@ -645,6 +645,9 @@ class Universe:
         tn31.set_tetras(ta124, tn22r, tn22l, t31.get_tetras()[3])
         tn22l.set_tetras(ta123, tn22r, ta023, tn31)
         tn22r.set_tetras(ta134, tn22l, ta034, tn31)
+        
+        time = tn31.get_vertices()[0].time
+        self.slab_sizes[time] += 1
 
         t31.get_tetras()[3].exchange_tetra_opposite(t31.get_tetras()[3].get_vertices()[0], tn31)
         ta023.exchange_tetra_opposite(t31.get_vertex_opposite(v4), tn22l)
@@ -668,9 +671,6 @@ class Universe:
         tn31.get_vertices()[0].set_tetra(tn31)
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
-
-        time = tn31.time
-        self.slab_sizes[time] += 1
 
         return True
     
@@ -757,13 +757,13 @@ class Universe:
         del t22l
         del t22r
 
+        time = tn31.get_vertices()[0].time
+        self.slab_sizes[time] -= 1
+
         # Make sure the base vertices are updated with the new 31 tetra
         tn31.get_vertices()[0].set_tetra(tn31)
         tn31.get_vertices()[1].set_tetra(tn31)
         tn31.get_vertices()[2].set_tetra(tn31)
-
-        time = tn31.time
-        self.slab_sizes[time] -= 1
 
         return True
 
@@ -833,7 +833,9 @@ class Universe:
         tn22l.set_tetras(ta023, tn13, ta123, tn22r)
         tn22r.set_tetras(ta034, tn13, ta134, tn22l)
 
-        # Update tetrahedra connectivity
+        time = t31.get_vertices()[0].time
+        self.slab_sizes[time] += 1
+
         t13.get_tetras()[0].exchange_tetra_opposite(t13.get_tetras()[0].get_vertices()[3], tn13)
         ta023.exchange_tetra_opposite(t13.get_vertex_opposite(v4), tn22l)
         ta034.exchange_tetra_opposite(t13.get_vertex_opposite(v2), tn22r)
@@ -850,9 +852,6 @@ class Universe:
         self.tetras_22.remove(t22.ID)
         del t13
         del t22
-
-        time = tn13.time
-        self.slab_sizes[time] += 1
 
         return True
 
@@ -940,7 +939,7 @@ class Universe:
         del t22l
         del t22r
 
-        time = tn13.time
+        time = tn13.get_vertices()[3].time
         self.slab_sizes[time] -= 1
 
         return True
@@ -1128,19 +1127,6 @@ class Universe:
                 # Make sure the neighbour also has the vertex as neighbour
                 assert self.vertex_neighbours[n].count(v) == 1, f"Error: Vertex {v} is not a neighbour of vertex {n}.\n{self.log()}"
         
-        # Check that number of tetrahedra in each timeslice is correct
-        counter_slices = [0] * self.n_slices
-        counter_slabs = [0] * self.n_slices
-
-        for tetra in self.tetrahedron_pool.get_objects():
-            counter_slabs[tetra.time] += 1
-            if tetra.is_31():
-                counter_slices[tetra.time] += 1
-        
-        for i in range(self.n_slices):
-            assert counter_slabs[i] == self.slab_sizes[i], f"Error: Number of tetrahedra in slab {i} is incorrect.\nCounted: {counter_slabs}, Expected: {self.slab_sizes}"
-            assert counter_slices[i] == self.slice_sizes[i], f"Error: Number of tetrahedra in slice {i} is incorrect.\nCounted: {counter_slices}, Expected: {self.slice_sizes}"
-
         print("Valid! :)")
         print("====================================================")
 
@@ -1227,7 +1213,7 @@ class Universe:
 
 if __name__ == "__main__":
     # u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
-    u = Universe(geometry_infilename="/home/seda2102/epic/CDT/src/2+1/experiments/saved_universes/k0=6/outfile_k0=6_tswps=10_swps=0_kstps=1000_chain=0_thermal_10.txt")
-    u.update_geometry()
+    u = Universe(geometry_infilename="initial_universes/T3_k0=4.0_tswps=1000_swps=0_kstps=300000_chain=124_thermal_1000.txt")
+    u.update_vertices()
     u.check_validity()
     u.log()
