@@ -8,7 +8,7 @@ from classes.universe import Universe
 def main(args):
     # Create an instance of the Universe class
     T = args.T
-    universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}', strictness=3)
+    universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}.txt', strictness=3)
 
     # Create an instance of the Simulation class with the provided arguments
     simulation = Simulation(
