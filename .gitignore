@@ -11,6 +11,8 @@ lib
 logs
 *.prof
 *.dat
+*.npy
+*.txt
 measurements
 src/2+1/visualisation
 networks

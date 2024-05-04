@@ -141,8 +141,6 @@ class Universe:
             if line != n3:
                 print(f"Error: n3 = {n3}, line = {line}")
                 return False
-            
-            print(f"Read {geometry_infilename}.")
 
         # Make sure to order the tetrahedra neighbours by convention
         if ordered == 0:
@@ -187,6 +185,8 @@ class Universe:
             vertex.cnum = cnum
             vertex.scnum = scnum
         
+        print(f"Read and loaded {geometry_infilename}.")
+
         return True
 
     def add(self, tetra31_id: int) -> bool:

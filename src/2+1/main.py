@@ -3,19 +3,31 @@ sys.path.append('..')
 import argparse
 from classes.simulation import Simulation
 from classes.universe import Universe
+import numpy as np
 
 
 def main(args):
     # Create an instance of the Universe class
     T = args.T
-    universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}.txt', strictness=3)
+    k0 = args.k0
+    if args.intial_geometry:
+        universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}.txt', strictness=3)
+        k3 = args.k3
+    else:
+        universe = Universe(geometry_infilename=f'experiments/thermal_{args.target_volume}/T{T}/saved_universes/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
+         # Get corresponding k3 value
+        k3_file = f'experiments/thermal_{args.target_volume}/T{T}/measurements/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
+        k3_values = np.load(k3_file)
+        k3 = k3_values[-1]
+
+        print(f'Loaded universe with k3={k3}')
 
     # Create an instance of the Simulation class with the provided arguments
     simulation = Simulation(
         universe=universe,
         seed=args.seed,
         k0=args.k0,
-        k3=args.k3,
+        k3=k3,
         tune_flag=args.tune_flag,
         thermal_sweeps=args.thermal_sweeps,
         sweeps=args.sweeps,
@@ -46,6 +58,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Monte Carlo simulation")
+    parser.add_argument("--intial_geometry", action="store_true", help="Flag to use thermalised universe")
     parser.add_argument("--T", type=int, default=3, help="Number of time slices of the universe")
     parser.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     parser.add_argument("--k0", type=float, default=1, help="Number of k0 moves to perform")

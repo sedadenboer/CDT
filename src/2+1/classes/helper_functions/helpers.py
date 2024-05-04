@@ -75,6 +75,9 @@ def get_spatial_neighbours(universe: Universe) -> Dict[int, List[int]]:
 
     Args:
         universe (Universe): The universe sample.
+
+    Returns:
+        Dict[int, List[int]]: A dictionary with vertex IDs as keys and a list with their spatial neighbours as values.
     """
     spatial_neighbours = {}
 
