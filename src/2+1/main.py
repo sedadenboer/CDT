@@ -14,13 +14,15 @@ def main(args):
         universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}.txt', strictness=3)
         k3 = args.k3
     else:
-        universe = Universe(geometry_infilename=f'experiments/thermal_{args.target_volume}/T{T}/saved_universes/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
-         # Get corresponding k3 value
-        k3_file = f'experiments/thermal_{args.target_volume}/T{T}/measurements/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
+        universe = Universe(geometry_infilename=f'saved_universes_thermal/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
+        # universe = Universe(geometry_infilename=f'experiments/thermal_{args.target_volume}/T{T}/saved_universes/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
+        # Get corresponding k3 value
+        k3_file = f'measurements_thermal/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
+        # k3_file = f'experiments/thermal_{args.target_volume}/T{T}/measurements/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
         k3_values = np.load(k3_file)
         k3 = k3_values[-1]
 
-        print(f'Loaded universe with k3={k3}')
+        print(f'Loaded universe with k0={args.k0} and k3={k3}')
 
     # Create an instance of the Simulation class with the provided arguments
     simulation = Simulation(
@@ -58,7 +60,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Monte Carlo simulation")
-    parser.add_argument("--intial_geometry", action="store_true", help="Flag to use thermalised universe")
+    parser.add_argument("--intial_geometry", action="store_true", help="Flag to use initial universe")
     parser.add_argument("--T", type=int, default=3, help="Number of time slices of the universe")
     parser.add_argument("--seed", type=int, default=42, help="Seed for random number generator")
     parser.add_argument("--k0", type=float, default=1, help="Number of k0 moves to perform")
@@ -74,7 +76,7 @@ if __name__ == "__main__":
     parser.add_argument("--target_volume", type=int, default=0, help="Target volume")
     parser.add_argument("--target2_volume", type=int, default=0, help="Second target volume")
     parser.add_argument("--epsilon", type=float, default=0.00005, help="Epsilon parameter")
-    parser.add_argument("--observables", nargs="+", default=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature'], help="List of observables to measure")
+    parser.add_argument("--observables", nargs="+", default=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections'], help="List of observables to measure")
     parser.add_argument("--include_mcmc_data", action="store_true", help="Flag to include MCMC data in the observables)")
     parser.add_argument("--measuring_interval", type=int, default=1, help="Measuring interval")
     parser.add_argument("--measuring_thermal", action="store_true",help="Flag to measure thermal data")

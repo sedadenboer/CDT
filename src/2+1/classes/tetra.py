@@ -73,7 +73,7 @@ class Tetrahedron:
 
         assert v0.time != v3.time
         
-        self.vs = np.array([weakref.ref(v0), weakref.ref(v1), weakref.ref(v2), weakref.ref(v3)], dtype=object)
+        self.vs = np.array([v0, v1, v2, v3], dtype=object)
         self.time = v0.time
     
     def get_vertices(self) -> np.ndarray[Vertex]:
@@ -84,7 +84,7 @@ class Tetrahedron:
         Returns:
             np.ndarray[Vertex]: The vertices of the tetrahedron.
         """
-        return np.array([v() for v in self.vs])
+        return self.vs
     
     def set_tetras(self, t0: Tetrahedron, t1: Tetrahedron, t2: Tetrahedron, t3: Tetrahedron):
         """
@@ -98,7 +98,7 @@ class Tetrahedron:
             t2 (Tetrahedron): Third tetrahedron.
             t3 (Tetrahedron): Fourth tetrahedron.
         """
-        self.tnbr = np.array([weakref.ref(t0), weakref.ref(t1), weakref.ref(t2), weakref.ref(t3)], dtype=object)
+        self.tnbr = np.array([t0, t1, t2, t3], dtype=object)
 
     def get_tetras(self) -> np.ndarray[Tetrahedron]:
         """
@@ -107,7 +107,7 @@ class Tetrahedron:
         Returns:
             np.ndarray[Tetrahedron]: The tetrahedron neighbours of the tetrahedron.
         """
-        return np.array([t() for t in self.tnbr])
+        return self.tnbr
     
     def is_31(self) -> bool:
         """
@@ -146,7 +146,7 @@ class Tetrahedron:
         Returns:
             bool: True if the tetrahedron has the given vertex, False otherwise.
         """
-        set_vs = set(ref() for ref in self.vs)
+        set_vs = set(self.vs)
         return v in set_vs
     
     def check_neighbours_tetra(self, t: Tetrahedron) -> bool:
@@ -159,7 +159,7 @@ class Tetrahedron:
         Returns:
             bool: True if the given tetrahedron is a neighbour of the tetrahedron, False otherwise.
         """
-        set_tnbr = set(ref() for ref in self.tnbr)
+        set_tnbr = set(self.tnbr)
         return t in set_tnbr
     
     def get_tetra_opposite(self, v: Vertex) -> Tetrahedron:
@@ -175,9 +175,9 @@ class Tetrahedron:
         Raises:
             ValueError: If the vertex is not in the tetrahedron.
         """
-        vertex_index = np.where(self.vs == weakref.ref(v))[0]
+        vertex_index = np.where(self.vs == v)[0]
         if len(vertex_index) > 0:
-            return self.tnbr[vertex_index[0]]()
+            return self.tnbr[vertex_index[0]]
             
         raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
@@ -193,12 +193,12 @@ class Tetrahedron:
         """
         tn = self.get_tetra_opposite(v)
 
-        face = set(ref() for ref in self.vs)
+        face = set(self.vs)
         face.remove(v)
 
         for tnv in tn.vs:
-            if tnv() not in face:
-                return tnv()
+            if tnv not in face:
+                return tnv
 
         raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
@@ -215,9 +215,9 @@ class Tetrahedron:
         Raises:
             ValueError: If the given tetrahedron is not a neighbour of the tetrahedron.
         """
-        tn_index = np.where(self.tnbr == weakref.ref(tn))[0]
+        tn_index = np.where(self.tnbr == tn)[0]
         if len(tn_index) > 0:
-            return self.vs[tn_index[0]]()
+            return self.vs[tn_index[0]]
             
         raise ValueError(f"Tetrahedron {tn.ID} is not a neighbour of tetrahedron {self.ID}")
 
@@ -229,17 +229,29 @@ class Tetrahedron:
             v (Vertex): The vertex to exchange the tetrahedron opposite for.
             tn (Tetrahedron): The tetrahedron to exchange the opposite tetrahedron for.
         """
-        index = np.where(self.vs == weakref.ref(v))[0]
+        index = np.where(self.vs == v)[0]
         if len(index) > 0:
-            self.tnbr[index[0]] = weakref.ref(tn)
+            self.tnbr[index[0]] = tn
         else:
             raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
+    def clear_references(self) -> None:
+        """
+        Clears all the tetrahedron neighbours and vertices.
+        """
+        self.tnbr = np.empty(4, dtype=object)
+        self.vs = np.empty(4, dtype=object)
+        
     def log(self):
         """
         Prints information about the tetrahedron.
         """
         print(f"Tetrahedron {self.ID} @ {self.time} with type {self.to_string(self.type)}")
-        print(f"Vertices: {[v().ID for v in self.vs]}, time: {[v().time for v in self.vs]}")
-        print(f"Neighbours: {[t().ID for t in self.tnbr]}, time: {[t().time for t in self.tnbr]}")
+        print(f"Vertices: {[v.ID for v in self.vs]}, time: {[v.time for v in self.vs]}")
+        print(f"Neighbours: {[t.ID for t in self.tnbr]}, time: {[t.time for t in self.tnbr]}")
         print()
+
+    # def __del__(self):
+    #     self.clear_references()
+    #     del self
+    #     print(f"Tetrahedron {self.ID} deleted")

@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, List, Dict
 if TYPE_CHECKING:
     from tetra import Tetrahedron
 import numpy as np
-import weakref
 
 
 class Vertex:
@@ -41,7 +40,7 @@ class Vertex:
         # Make sure that the vertex is in the base of the tetrahedron
         assert t.has_vertex(self)
         assert np.array_equal(t.get_vertices(), self) != 3
-        self.tetra = weakref.ref(t)
+        self.tetra = t
 
     def get_tetra(self) -> Tetrahedron:
         """
@@ -50,7 +49,7 @@ class Vertex:
         Returns:
             Tetrahedron: A (3,1)-tetrahedron that contains this vertex in its base.
         """
-        return self.tetra() if self.tetra else None
+        return self.tetra
 
     def check_vertex_neighbour(self, v: Vertex) -> bool:
         """
@@ -65,7 +64,7 @@ class Vertex:
         if v == self:
             return False
         
-        t = self.tetra()
+        t = self.tetra
 
         # Dictionary to keep track of triangles that have been checked
         done: Dict[Vertex, bool] = {}
@@ -98,6 +97,12 @@ class Vertex:
     
         return False
 
+    def clear_references(self) -> None:
+        """
+        Clears all references to other objects.
+        """
+        self.tetra = None
+        
     def log(self) -> str:
         """
         Returns a string representation of the vertex.
@@ -105,5 +110,10 @@ class Vertex:
         Returns:
             str: A string representation of the vertex.
         """
-        tetra = self.tetra()
+        tetra = self.tetra
         return f"Vertex {self.ID} @ time {self.time} with cnum {self.cnum} and scnum {self.scnum}. Tetrahedron: {tetra}"
+    
+    # def __del__(self):
+    #     self.clear_references()
+    #     del self
+    #     print(f"Deleted vertex {self.ID}")
