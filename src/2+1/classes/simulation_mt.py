@@ -16,6 +16,9 @@ if TYPE_CHECKING:
     from universe import Universe
 from helper_functions.helpers import total_size
 import multiprocessing
+from multiprocessing import Pool, Manager, shared_memory
+from check_mt import check_delete, check_flip, check_shift_u, check_shift_d, check_ishift_u, check_ishift_d
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 class Simulation:
@@ -59,7 +62,7 @@ class Simulation:
         N_VERTICES_TETRA = 4
         N_VERTICES_TRIANGLE = 3
         N_MOVES = 5
-
+        
     def __init__(self,
                     universe: Universe, seed: int,
                     k0: int, k3: int, tune_flag: bool = True,
@@ -94,18 +97,22 @@ class Simulation:
             self.include_mcmc_data: bool = include_mcmc_data
             self.n_proposals: int = n_proposals
             assert self.n_proposals <= multiprocessing.cpu_count(), "Number of proposals should be less than or equal to the number of CPU cores."
+            
+            # Initialize data structures for MCMC data and set the frequencies of the moves
             self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
             self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
             self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables}
+            
             # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
             self.successes: List[np.ndarray] = []
             self.fails: List[np.darray] = []
             self.acceptance_ratios = []
             self.k3_values = []
+
             # Calculate cumulative frequencies
             self.cum_freqs = np.cumsum(self.move_freqs)
             self.freq_total = sum(self.move_freqs)
-    
+
     def start(self, outfile: str = 'output'):
         """
         Starts the MCMC CDT 2+1 simulation.
@@ -266,7 +273,7 @@ class Simulation:
 
         # Print the sizes of the observables final
         for obs, data in self.observables.items():
-            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")   
+            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")  
 
     def get_observable_data(self, name: str) -> Any:
         """
@@ -354,6 +361,8 @@ class Simulation:
         """
         gathered_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
         gathered_failed_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
+        move_num = 0
+        move = 0
 
         # Perform n moves
         for _ in range(n):
@@ -366,9 +375,8 @@ class Simulation:
             else:
                 gathered_failed_counts[move - 1] += 1
 
-            del move_num
-            del move
-
+        print(f"FAILED Add: {gathered_failed_counts[0]}, Delete: {gathered_failed_counts[1]}, Flip: {gathered_failed_counts[2]}, Shift: {gathered_failed_counts[3]}, Inverse shift: {gathered_failed_counts[4]}")
+        print(f"COUNTS Add: {gathered_counts[0]}, Delete: {gathered_counts[1]}, Flip: {gathered_counts[2]}, Shift: {gathered_counts[3]}, Inverse shift: {gathered_counts[4]}")
         return gathered_counts, gathered_failed_counts
 
     def mcmc_check(self, acceptance_probability: float) -> bool:
@@ -474,28 +482,8 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(2)):
             return False
 
-        def check_delete() -> int:
-            """
-            Helper function to check if a vertex can be deleted.
-            """
-            # Get a random vertex
-            vertex_label = self.universe.vertex_pool.pick()
-            vertex = self.universe.vertex_pool.get(vertex_label)
-
-            # Check if the vertex is actually deletable
-            if (
-                vertex.cnum == 6
-                and vertex.scnum == 3
-                and self.universe(vertex_id=vertex_label, perform=False
-                )
-            ):
-                return vertex_label
-            else:
-                return -1
-
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_delete, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_delete, [self.shared_universe] * self.n_proposals)
         
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [vertex_label for vertex_label in results if vertex_label != -1]
@@ -503,7 +491,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_vertex_label = self.rng.choice(valid_proposals)
-            return self.universe(vertex_id=random_vertex_label, perform=True)
+            return self.universe.delete(vertex_id=random_vertex_label, perform=True)
 
         return False
 
@@ -515,37 +503,8 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        def check_flip() -> Union[Tuple[int, int], int]:
-            """
-            Helper function to check if a flip move is possible.
-            If possible, returns the labels of the tetrahedra to flip.
-            """
-            tetra012_label = self.universe.tetras_31.pick()
-            tetra012 = self.universe.tetrahedron_pool.get(tetra012_label)
-            
-            # Get random neighbour of tetra012
-            random_neighbour = self.rng.randint(0, 2)
-            tetra230 = tetra012.get_tetras()[random_neighbour]
-
-            # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
-            if (
-                tetra230.is_31()
-                and tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3])
-                and tetra012.get_tetras()[3].is_13()
-                and tetra230.get_tetras()[3].is_13()
-                and self.universe.flip(
-                    tetra012_label=tetra012_label,
-                    tetra230_label=tetra230.ID,
-                    perform=False
-                )
-            ):
-                return tetra012_label, tetra230.ID
-            else:
-                return -1
-
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_flip, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_flip, [self.shared_universe] * self.n_proposals)
 
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
@@ -553,7 +512,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra012_label, random_tetra230_label = self.rng.choice(valid_proposals)
-            return self.universe.flip(tetra012_label=random_tetra012_label, tetra230_label=random_tetra230_label, perform=True)
+            return self.universe.flip(tetra012_id=random_tetra012_label, tetra230_id=random_tetra230_label, perform=True)
         
         return False
     
@@ -568,36 +527,9 @@ class Simulation:
         # Perform MCMC check for acceptance
         if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
-        
-        def check_shift_u() -> Union[Tuple[int, int], int]:
-            """
-            Helper function to check if a shift move is possible.
-            If possible, returns the labels of the tetrahedra to shift.
-            """
-            # Pick a random (3,1)-tetrahedron
-            tetra31_label = self.universe.tetras_31.pick()
-            tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
 
-            # Get random neighbour of tetra31
-            random_neighbour = self.rng.randint(0, 2)
-            tetra22 = tetra31.get_tetras()[random_neighbour]
-
-            # Check if the tetrahedron is actually of type (2,2)
-            if (
-                tetra22.is_22()
-                and self.universe.shift_u(
-                    tetra31_label=tetra31_label,
-                    tetra22_label=tetra22.ID,
-                    perform=False
-                )
-            ):
-                return tetra31_label, tetra22.ID
-            else:
-                return -1
-        
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_shift_u, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_shift_u, [self.shared_universe] * self.n_proposals)
 
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
@@ -605,7 +537,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra31_label, random_tetra22_label = self.rng.choice(valid_proposals)
-            return self.universe.shift_u(tetra31_label=random_tetra31_label, tetra22_label=random_tetra22_label, perform=True)
+            return self.universe.shift_u(tetra31_id=random_tetra31_label, tetra22_id=random_tetra22_label, perform=True)
         
         return False
 
@@ -621,35 +553,8 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
         
-        def check_shift_d() -> Union[Tuple[int, int], int]:
-            """
-            Helper function to check if a shift move is possible.
-            If possible, returns the labels of the tetrahedra to shift.
-            """
-            # Pick a random (1,3)-tetrahedron
-            tetra31_label = self.universe.tetras_31.pick()
-            tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
-
-            # Get random neighbour of tetra13
-            random_neighbour = self.rng.randint(1, 3)
-            tetra22 = tetra13.get_tetras()[random_neighbour]
-
-            # Check if the tetrahedron is actually of type (2,2)
-            if (
-                tetra22.is_22()
-                and self.universe.shift_d(
-                    tetra13_label=tetra13.ID,
-                    tetra22_label=tetra22.ID,
-                    perform=False
-                )
-            ):
-                return tetra13.ID, tetra22.ID
-            else:
-                return -1
-        
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_shift_d, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_shift_d, [self.shared_universe] * self.n_proposals)
 
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
@@ -657,7 +562,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra13_label, random_tetra22_label = self.rng.choice(valid_proposals)
-            return self.universe.shift_d(tetra13_label=random_tetra13_label, tetra22_label=random_tetra22_label, perform=True)
+            return self.universe.shift_d(tetra13_id=random_tetra13_label, tetra22_id=random_tetra22_label, perform=True)
         
         return False
 
@@ -673,40 +578,8 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
         
-        def check_ishift_u() -> Union[Tuple[int, int], int]:
-            """
-            Helper function to check if an inverse shift move is possible.
-            If possible, returns the labels of the tetrahedra to inverse shift.
-            """
-            # Pick a random (3,1)-tetrahedron
-            tetra31_label = self.universe.tetras_31.pick()
-            tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
-
-            # Get random neighbour of tetra31
-            random_neighbour = self.rng.randint(0, 2)
-            tetra22l = tetra31.get_tetras()[random_neighbour]
-            tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
-
-            # Count the number of shared vertices between tetra22l and tetra22r
-            shared_vertices = 0
-            for i in range(self.Constants.N_VERTICES_TETRA):
-                if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
-                    shared_vertices += 1
-
-            # Make sure the tetra is of type (2,2) and that the (2,2) tetras are neighbours and have 3 shared vertices
-            if (
-                tetra22l.is_22()
-                and tetra22r.is_22()
-                and tetra22l.check_neighbours_tetra(tetra22r)
-                and shared_vertices == 3
-            ):
-                return tetra31_label, tetra22l.ID, tetra22r.ID
-            else:
-                return -1
-            
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_ishift_u, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_ishift_u, [self.shared_universe] * self.n_proposals)
 
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
@@ -714,7 +587,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra31_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
-            return self.universe.ishift_u(tetra31_label=random_tetra31_label, tetra22l_label=random_tetra22l_label, tetra22r_label=random_tetra22r_label, perform=True)
+            return self.universe.ishift_u(tetra31_id=random_tetra31_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label, perform=True)
 
         return False
                 
@@ -729,42 +602,9 @@ class Simulation:
         # Perform MCMC check for acceptance
         if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
-        
-        def check_ishift_d() -> Union[Tuple[int, int], int]:
-            """
-            Helper function to check if an inverse shift move is possible.
-            If possible, returns the labels of the tetrahedra to inverse shift.
-            """
-            # Pick a random (1,3)-tetrahedron
-            tetra31_label = self.universe.tetras_31.pick()
-            tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
-            tetra13 = tetra31.get_tetras()[3]
 
-            # Get random (2,2) neighbours of tetra13
-            random_neighbour = self.rng.randint(0, 2)
-            tetra22l = tetra13.get_tetras()[1 + random_neighbour]
-            tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
-
-            # Count the number of shared vertices between tetra22l and tetra22r
-            shared_vertices = 0
-            for i in range(self.Constants.N_VERTICES_TETRA):
-                if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
-                    shared_vertices += 1
-
-            # Make sure the tetra is of type (2,2) and that the (2,2) tetras are neighbours and have 3 shared vertices
-            if (
-                tetra22l.is_22()
-                and tetra22r.is_22()
-                and tetra22l.check_neighbours_tetra(tetra22r)
-                and shared_vertices == 3
-            ):
-                return tetra13.ID, tetra22l.ID, tetra22r.ID
-            else:
-                return -1
-        
-        # Generate n random proposals in parallel
-        with multiprocessing.Pool(self.n_proposals) as pool:
-            results = pool.map(check_ishift_d, range(self.n_proposals))
+        with Pool(self.n_proposals) as pool:
+            results = pool.map(check_ishift_d, [self.shared_universe] * self.n_proposals)
         
         # Filter out the valid proposals, i.e. entries that are not -1
         valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
@@ -772,7 +612,7 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra13_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
-            return self.universe.ishift_d(tetra13_label=random_tetra13_label, tetra22l_label=random_tetra22l_label, tetra22r_label=random_tetra22r_label, perform=True)
+            return self.universe.ishift_d(tetra13_id=random_tetra13_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label, perform=True)
         
         return False
 
@@ -822,9 +662,9 @@ class Simulation:
             self.k3 += delta_k3 * 20
 
     def trial(self):
-
         for _ in range(10):
             attempted = self.attempt_move()
+            print(f"Attempted move: {attempted}")
             if attempted > 0:
                 self.universe.check_validity()
 
@@ -841,18 +681,18 @@ if __name__ == "__main__":
         tune_flag=True,
         thermal_sweeps=50,
         sweeps=0,
-        k_steps=30000,
+        k_steps=300000,
         target_volume=3000, # Without tune does not do anything
         observables=observables,
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
-        measuring_thermal=True,
-        measuring_main=True,
+        measuring_thermal=False,
+        measuring_main=False,
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
         validity_check=False,
-        n_proposals=5
+        n_proposals=8
     )
 
     simulation.start(
@@ -860,12 +700,12 @@ if __name__ == "__main__":
     )
 
     simulation.universe.check_validity()
-    simulation.trial()
+    # simulation.trial()
     
-    simulation.universe.check_validity()
-    observed = simulation.observables
+    # simulation.universe.check_validity()
+    # observed = simulation.observables
 
-    for name, obs in observed.items():
-        print(f"Observable: {name}")
-        print(f"Thermal: {obs.data}\n")
-        print()
+    # for name, obs in observed.items():
+    #     print(f"Observable: {name}")
+    #     print(f"Thermal: {obs.data}\n")
+    #     print()

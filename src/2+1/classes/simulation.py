@@ -734,11 +734,3 @@ if __name__ == "__main__":
 
     simulation.universe.check_validity()
     simulation.trial()
-    
-    # simulation.universe.check_validity()
-    # observed = simulation.observables
-
-    # for name, obs in observed.items():
-    #     print(f"Observable: {name}")
-    #     print(f"Thermal: {obs.data}\n")
-    #     print()
