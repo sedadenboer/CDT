@@ -19,7 +19,18 @@ import multiprocessing
 from multiprocessing import Pool, shared_memory
 from check_mt import *
 import pickle
+import ctypes
 
+# Put pools and bags in shared memory
+# shared_array_base_vertex = shared_memory.SharedMemory(create=True, size=len(self.universe.vertex_pool.elements) * ctypes.sizeof(ctypes.c_int))
+# shared_array_vertex = np.ndarray(len(self.universe.vertex_pool.elements), dtype=ctypes.c_int, buffer=shared_array_base_vertex.buf)
+# shared_array_vertex[:] = self.universe.vertex_pool.elements
+# shared_array_base_tetras = shared_memory.SharedMemory(create=True, size=len(self.universe.tetrahedron_pool.elements) * ctypes.sizeof(ctypes.c_int))
+# shared_array_tetras = np.ndarray(len(self.universe.tetrahedron_pool.elements), dtype=ctypes.c_int, buffer=shared_array_base_tetras.buf)
+# shared_array_tetras[:] = self.universe.tetrahedron_pool.elements
+# shared_array_base_tetras_31 = shared_memory.SharedMemory(create=True, size=len(self.universe.tetras_31.elements) * ctypes.sizeof(ctypes.c_int))
+# shared_array_tetras_31 = np.ndarray(len(self.universe.tetras_31.elements), dtype=ctypes.c_int, buffer=shared_array_base_tetras_31.buf)
+# shared_array_tetras_31[:] = self.universe.tetras_31.elements
 
 def get_move_check(move: str, *args) -> int:
     """
@@ -131,7 +142,7 @@ class Simulation:
 
         # Create a pool for parallel execution
         self.pool = Pool(self.n_proposals)
-    
+
     def start(self, outfile: str = 'output'):
         """
         Starts the MCMC CDT 2+1 simulation.
@@ -302,7 +313,7 @@ class Simulation:
         """
         Gets the observable object by name.
         Options are: 'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22',
-        'slice_sizes', 'slab_sizes','curvature'.
+        'slice_sizes', 'slab_sizes','curvature', 'connections'.
 
         Args:
             name (str): The name of the observable.
@@ -369,17 +380,17 @@ class Simulation:
         """
         Execute all tasks in the pool and collect results.
         """
-        args_per_move = {
-            'delete': (self.universe.vertex_pool.elements, self.universe.vertex_pool.size),
-            'flip': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
-            'shift_u': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
-            'shift_d': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
-            'ishift_u': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
-            'ishift_d': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size)
-        }
+        # Get the required elements and sizes based on the move type
+        if move == 'delete':
+            args = (self.universe.vertex_pool.elements, self.universe.vertex_pool.size)
+        elif move in ['flip', 'shift_u', 'shift_d', 'ishift_u', 'ishift_d']:
+            args = (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size)
+        else:
+            # Handle unsupported move types
+            raise ValueError(f"Unsupported move type: {move}")
 
         # Generate the tasks
-        results = [self.add_task(get_move_check, move, *args_per_move[move]) for _ in range(self.n_proposals)]
+        results = [self.add_task(get_move_check, move, *args) for _ in range(self.n_proposals)]
         output = []
 
         # Collect the results
@@ -388,7 +399,7 @@ class Simulation:
                 output.append(result.get())
             except Exception as e:
                 print(f"Task generated an exception: {e}")
-          
+        
         print(f"{move}: Task completed with result: {output}")
         
         return output
@@ -747,6 +758,7 @@ if __name__ == "__main__":
         thermal_sweeps=1,
         sweeps=0,
         k_steps=100,
+        volfix_switch=0,
         target_volume=1000, # Without tune does not do anything
         observables=observables,
         include_mcmc_data=True,
@@ -756,7 +768,7 @@ if __name__ == "__main__":
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
-        validity_check=True,
+        validity_check=False,
         n_proposals=8
     )
 
