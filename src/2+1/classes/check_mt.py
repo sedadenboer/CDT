@@ -1,237 +1,329 @@
 from typing import Tuple, Union
 import random
-from multiprocessing import Pool, shared_memory
+import numpy as np
 
-class Constants:
-    N_VERTICES_TETRA = 4
-    N_VERTICES_TRIANGLE = 3
-    N_MOVES = 5
 
-class CheckMT:
+N_VERTICES_TETRA = 4
+N_VERTICES_TRIANGLE = 3
+N_MOVES = 5
+
+def pick(array, size, rng) -> int:
     """
-    Shared memory class to store the universe dictionary.
+    Picks a random object from the array.
     """
-    def __init__(self, universe, n_proposals):
-        self.universe = universe
-        self.n_proposals = n_proposals
+    if len(array) == 0:
+        raise Exception("Empty.")
+    else:
+        # Pick random element from pool
+        random_element = array[rng.randint(0, size - 1)]
+        while not random_element or random_element == -1:
+            random_element = array[rng.randint(0, size - 1)]
 
-        # Share memory between processes
-        self.universe_shm = shared_memory.SharedMemory(create=True, size=self.universe.size)
-        self.universe_shm.buf[:self.universe.size] = self.universe.buf
+        return random_element
 
-    def try_move(self, move: int) -> Union[Tuple[int], int]:
-        """
-        Helper function to try a move.
-        """
-        # Try out n times a move in parellel with shared memory resources and save the valid ones
-        with Pool() as pool:
-            results = pool.map(self.try_move_parallel, [move] * self.n_proposals)
+def check_delete(vertex_pool, vertex_pool_size) -> int:
+    """
+    Helper function to check if a vertex can be deleted.
+    """
+    # Get a random vertex
+    rng = random.Random()
+    vertex = pick(vertex_pool, vertex_pool_size, rng)
+    t01 = vertex.get_tetra()
+    tv01 = t01.get_tetras()[3]
+    
+    # Get the vertex index in the tetrahedron
+    vpos = np.where(t01.get_vertices() == vertex)[0][0]
+    assert vpos >= 0
 
-        # Check if any of the results are valid
-        for result in results:
-            if result != -1:
-                return result
-            
+    # Get the base vertices of the two tetrahedra
+    v0 = t01.get_vertices()[(vpos + 1) % 3]
+    v1 = t01.get_vertices()[(vpos + 2) % 3]
+    v2 = t01.get_vertex_opposite(v0)
+
+    # Get all tetrahedra that need to be updated
+    t12 = t01.get_tetra_opposite(v0)
+    t20 = t01.get_tetra_opposite(v1)
+    tv12 = tv01.get_tetra_opposite(v0)
+    tv20 = tv01.get_tetra_opposite(v1)
+
+    if (
+        t01.is_31()
+        and t12.is_31()
+        and t20.is_31()
+        and tv01.is_13()
+        and tv12.is_13()
+        and tv20.is_13()
+        and v0.scnum >= 4
+        and v1.scnum >= 4
+        and v2.scnum >= 4
+        and vertex.cnum == 6
+        and vertex.scnum == 3
+    ):
+        # print("delete worked: ", vertex_label)
+        return vertex.ID
+    else:
+        # print("delete failed: ", vertex_label)
         return -1
     
-    def try_move_parallel(self, move: int) -> Union[Tuple[int], int]:
-        """
-        Helper function to try a move in parallel.
-        """
-        if move == 2:
-            return self.check_delete()
-        elif move == 3:
-            return self.check_flip()
-        elif move == 4:
-            return self.check_shift_u()
-        elif move == 5:
-            return self.check_shift_d()
-        elif move == 6:
-            return self.check_ishift_u()
-        elif move == 7:
-            return self.check_ishift_d()
-        else:
-            raise ValueError("Invalid move type.")
-            
-    def check_delete(self) -> int:
-        """
-        Helper function to check if a vertex can be deleted.
-        """
-        # Get a random vertex
-        vertex_label = self.universe.vertex_pool.pick()
-        vertex = self.universe.vertex_pool.get(vertex_label)
+def check_flip(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
+    """
+    Helper function to check if a flip move is possible.
+    If possible, returns the labels of the tetrahedra to flip.
+    """
+    # Pick a random (3,1)-tetrahedron
+    rng = random.Random()
+    t012_label = pick(tetras_31, tetras_31_size, rng)
+    t012 = tetrahedron_pool[t012_label]
+    
+    # Get random neighbour of t012
+    random_neighbour = rng.randint(0, 2)
+    t230 = t012.get_tetras()[random_neighbour]
+    
+    # Get the opposite (1,3)-tetrahedra
+    tv012 = t012.get_tetras()[3]
+    tv230 = t230.get_tetras()[3]
+    
+    # # Get apex of the opposing tetrahedra
+    # vt = t012.get_vertices()[3]
+    # vb = tv012.get_vertices()[0]
 
-        # Check if the vertex is actually deletable
-        if (
-            vertex.cnum == 6
-            and vertex.scnum == 3
-            and self.universe.delete(vertex_id=vertex_label, perform=False
-            )
-        ):
-            # print("delete worked: ", vertex_label)
-            return vertex_label
-        else:
-            # print("delete failed: ", vertex_label)
-            return -1
+    # Get the vertices of the base triangles that are going to be linked
+    v1 = t012.get_vertex_opposite_tetra(t230)
+    v3 = t230.get_vertex_opposite_tetra(t012)
+    
+    # Get the remaining base vertices
+    v1pos = np.where(t012.get_vertices() == v1)[0][0]
+    v2 = t012.get_vertices()[(v1pos + 1) % 3]
+    v0 = t012.get_vertices()[(v1pos + 2) % 3]
+
+    # Get opposite neighbouring tetrahedra
+    ta01 = t012.get_tetra_opposite(v2)
+    # ta12 = t012.get_tetra_opposite(v0)
+    ta23 = t230.get_tetra_opposite(v0)
+    # ta30 = t230.get_tetra_opposite(v2)
+    tva01 = tv012.get_tetra_opposite(v2)
+    tva12 = tv012.get_tetra_opposite(v0)
+    tva23 = tv230.get_tetra_opposite(v0)
+    # tva30 = tv230.get_tetra_opposite(v2)
+    
+    # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
+    if (
+        t230.is_31()
+        and t012.get_tetras()[3].check_neighbours_tetra(t230.get_tetras()[3])
+        and t012.get_tetras()[3].is_13()
+        and t230.get_tetras()[3].is_13()
+        and t012.is_31()
+        and t230.is_31()
+        and tv012.is_13()
+        and tv230.is_13()
+        and tv012.check_neighbours_tetra(tv230)
+        and v1 != v3
+        and v0.scnum >= 4
+        and v2.scnum >= 4
+        and ta01 != t230
+        and ta23 != t012
+        and tva01 != tv230
+        and tva23 != tv012
+        and not v1.check_vertex_neighbour(v3)
+    ):
+        return t012_label, t230.ID
+    else:
+        return -1
         
-    def check_flip(self) -> Union[Tuple[int, int], int]:
-        """
-        Helper function to check if a flip move is possible.
-        If possible, returns the labels of the tetrahedra to flip.
-        """
-        rng = random.Random()  # Create a new RNG instance for each process
-        tetra012_label = self.universe.tetras_31.pick()
-        tetra012 = self.universe.tetrahedron_pool.get(tetra012_label)
+def check_shift_u(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
+    """
+    Helper function to check if a shift move is possible.
+    If possible, returns the labels of the tetrahedra to shift.
+    """
+    # Pick a random (3,1)-tetrahedron
+    rng = random.Random()
+    t31_label = pick(tetras_31, tetras_31_size, rng)
+    t31 = tetrahedron_pool[t31_label]
+
+    # Get random neighbour of t31
+    random_neighbour = rng.randint(0, 2)
+    t22 = t31.get_tetras()[random_neighbour]
+
+    # Get the vertices that will be linked
+    v0 = t31.get_vertex_opposite_tetra(t22)
+    v1 = t22.get_vertex_opposite_tetra(t31)
+    
+    # The remaining vertices
+    # v3 = t31.get_vertices()[3]
+    v0pos = np.where(t31.get_vertices() == v0)[0][0]
+    v2 = t31.get_vertices()[(v0pos + 1) % 3]
+    v4 = t31.get_vertices()[(v0pos + 2) % 3]
+
+    # Get neighbouring tetrahedra that need to be updated after the move
+    ta023 = t31.get_tetra_opposite(v4)
+    ta034 = t31.get_tetra_opposite(v2)
+    ta123 = t22.get_tetra_opposite(v4)
+    # ta124 = t22.get_tetra_opposite(v3)
+    ta134 = t22.get_tetra_opposite(v2)
+    
+    # Check if the move is valid
+    if (
+        t22.is_22()
+        and not ta023.has_vertex(v1)
+        and not ta123.has_vertex(v0)
+        and not ta034.has_vertex(v1)
+        and not ta134.has_vertex(v0)
+        and not v0.check_vertex_neighbour(v1)
+    ):
+        return t31_label, t22.ID
+    else:
+        return -1
         
-        # Get random neighbour of tetra012
-        random_neighbour = rng.randint(0, 2)
-        tetra230 = tetra012.get_tetras()[random_neighbour]
+def check_shift_d(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
+    """
+    Helper function to check if a shift move is possible.
+    If possible, returns the labels of the tetrahedra to shift.
+    """
+    # Pick a random (1,3)-tetrahedron
+    rng = random.Random()  
+    t31_label = pick(tetras_31, tetras_31_size, rng)
+    t31 = tetrahedron_pool[t31_label]
+    t13 = t31.get_tetras()[3]
 
-        # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
-        if (
-            tetra230.is_31()
-            and tetra012.get_tetras()[3].check_neighbours_tetra(tetra230.get_tetras()[3])
-            and tetra012.get_tetras()[3].is_13()
-            and tetra230.get_tetras()[3].is_13()
-            and self.universe.flip(
-                tetra012_id=tetra012_label,
-                tetra230_id=tetra230.ID,
-                perform=False
-            )
-        ):
-            return tetra012_label, tetra230.ID
-        else:
-            return -1
-            
-    def check_shift_u(self) -> Union[Tuple[int, int], int]:
-        """
-        Helper function to check if a shift move is possible.
-        If possible, returns the labels of the tetrahedra to shift.
-        """
-        rng = random.Random()  # Create a new RNG instance for each process
-        # Pick a random (3,1)-tetrahedron
-        tetra31_label = self.universe.tetras_31.pick()
-        tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
+    # Get random neighbour of t13
+    random_neighbour = rng.randint(1, 3)
+    t22 = t13.get_tetras()[random_neighbour]
 
-        # Get random neighbour of tetra31
-        random_neighbour = rng.randint(0, 2)
-        tetra22 = tetra31.get_tetras()[random_neighbour]
+    # Get the vertices that will be linked
+    v0 = t13.get_vertex_opposite_tetra(t22)
+    v1 = t22.get_vertex_opposite_tetra(t13)
 
-        # Check if the tetrahedron is actually of type (2,2)
-        if (
-            tetra22.is_22()
-            and self.universe.shift_u(
-                tetra31_id=tetra31_label,
-                tetra22_id=tetra22.ID,
-                perform=False
-            )
-        ):
-            return tetra31_label, tetra22.ID
-        else:
-            return -1
-            
-    def check_shift_d(self) -> Union[Tuple[int, int], int]:
-        """
-        Helper function to check if a shift move is possible.
-        If possible, returns the labels of the tetrahedra to shift.
-        """
-        rng = random.Random()  # Create a new RNG instance for each process
-        # Pick a random (1,3)-tetrahedron
-        tetra31_label = self.universe.tetras_31.pick()
-        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
+    # The remaining vertices
+    # v3 = t13.get_vertices()[0] # Top
+    v0pos = np.where(t31.get_vertices() == v0)[0][0]
+    v2 = t31.get_vertices()[(v0pos + 1) % 3]
+    v4 = t31.get_vertices()[(v0pos + 2) % 3]
 
-        # Get random neighbour of tetra13
-        random_neighbour = rng.randint(1, 3)
-        tetra22 = tetra13.get_tetras()[random_neighbour]
+    # Get the neighbouring tetrahedra
+    ta023 = t13.get_tetra_opposite(v4)
+    ta034 = t13.get_tetra_opposite(v2)
+    ta123 = t22.get_tetra_opposite(v4)
+    # ta124 = t22.get_tetra_opposite(v3)
+    ta134 = t22.get_tetra_opposite(v2)
 
-        # Check if the tetrahedron is actually of type (2,2)
-        if (
-            tetra22.is_22()
-            and self.universe.shift_d(
-                tetra13_id=tetra13.ID,
-                tetra22_id=tetra22.ID,
-                perform=False
-            )
-        ):
-            return tetra13.ID, tetra22.ID
-        else:
-            return -1
+    # Check if the tetrahedron is actually of type (2,2)
+    if (
+        t22.is_22()
+        and not ta023.has_vertex(v1)
+        and not ta123.has_vertex(v0)
+        and not ta034.has_vertex(v1)
+        and not ta134.has_vertex(v0)
+        and not v0.check_vertex_neighbour(v1)
+    ):
+        return t13.ID, t22.ID
+    else:
+        return -1
 
-    def check_ishift_u(self) -> Union[Tuple[int, int, int], int]:
-        """
-        Helper function to check if an inverse shift move is possible.
-        If possible, returns the labels of the tetrahedra to inverse shift.
-        """
-        rng = random.Random()  # Create a new RNG instance for each process
-        # Pick a random (3,1)-tetrahedron
-        tetra31_label = self.universe.tetras_31.pick()
-        tetra31 = self.universe.tetrahedron_pool.get(tetra31_label)
+def check_ishift_u(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int, int], int]:
+    """
+    Helper function to check if an inverse shift move is possible.
+    If possible, returns the labels of the tetrahedra to inverse shift.
+    """
+    # Pick a random (3,1)-tetrahedron
+    rng = random.Random()
+    t31_label = pick(tetras_31, tetras_31_size, rng)
+    t31 = tetrahedron_pool[t31_label]
 
-        # Get random neighbour of tetra31
-        random_neighbour = rng.randint(0, 2)
-        tetra22l = tetra31.get_tetras()[random_neighbour]
-        tetra22r = tetra31.get_tetras()[(random_neighbour + 2) % 3]
+    # Get random neighbour of t31
+    random_neighbour = rng.randint(0, 2)
+    t22l = t31.get_tetras()[random_neighbour]
+    t22r = t31.get_tetras()[(random_neighbour + 2) % 3]
 
-        # Count the number of shared vertices between tetra22l and tetra22r
-        shared_vertices = 0
-        for i in range(Constants.N_VERTICES_TETRA):
-            if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
-                shared_vertices += 1
+     # Get the vertices of the interior triangle
+    v1 = t31.get_vertices()[3]
+    v3 = t22l.get_vertex_opposite_tetra(t31)
+    v4 = t31.get_vertex_opposite_tetra(t22l)
 
-        # Make sure the tetra is of type (2,2) and that they are neighbours and have 3 shared vertices
-        if (
-            tetra22l.is_22()
-            and tetra22r.is_22()
-            and tetra22l.check_neighbours_tetra(tetra22r)
-            and shared_vertices == 3
-            and self.universe.ishift_u(
-                tetra31_id=tetra31_label,
-                tetra22l_id=tetra22l.ID,
-                tetra22r_id=tetra22r.ID,
-                perform=False
-            )
-        ):
-            return tetra31_label, tetra22l.ID, tetra22r.ID
-        else:
-            return -1
+    # The remaining vertices
+    v4pos = np.where(t31.get_vertices() == v4)[0][0]
+    v0 = t31.get_vertices()[(v4pos + 1) % 3]
+    v2 = t31.get_vertices()[(v4pos + 2) % 3]
 
-    def check_ishift_d(self) -> Union[Tuple[int, int, int], int]:
-        """
-        Helper function to check if an inverse shift move is possible.
-        If possible, returns the labels of the tetrahedra to inverse shift.
-        """
-        rng = random.Random()  # Create a new RNG instance for each process
-        # Pick a random (1,3)-tetrahedron
-        tetra31_label = self.universe.tetras_31.pick()
-        tetra13 = self.universe.tetrahedron_pool.get(tetra31_label).get_tetras()[3]
+    # Get neighbouring tetrahedra that need to be updated after the move
+    ta023 = t22l.get_tetra_opposite(v1)
+    ta034 = t22r.get_tetra_opposite(v1)
+    ta123 = t22l.get_tetra_opposite(v0)
+    ta124 = t31.get_tetra_opposite(v0)
+    ta134 = t22r.get_tetra_opposite(v0)
+    
+    # Count the number of shared vertices between t22l and t22r
+    shared_vertices = 0
+    for i in range(N_VERTICES_TETRA):
+        if t22r.has_vertex(t22l.get_vertices()[i]):
+            shared_vertices += 1
 
-        # Get random (2,2) neighbours of tetra13
-        random_neighbour = rng.randint(0, 2)
-        tetra22l = tetra13.get_tetras()[1 + random_neighbour]
-        tetra22r = tetra13.get_tetras()[1 + (random_neighbour + 2) % 3]
+    # Make sure the tetra is of type (2,2) and that they are neighbours and have 3 shared vertices
+    if (
+        t22l.is_22()
+        and t22r.is_22()
+        and t22l.check_neighbours_tetra(t22r)
+        and shared_vertices == 3
+        and ta023.has_vertex(v4)
+        and ta123.has_vertex(v4)
+        and ta034.has_vertex(v2)
+        and ta124.has_vertex(v3)
+        and ta134.has_vertex(v2)
+    ):
+        return t31_label, t22l.ID, t22r.ID
+    else:
+        return -1
 
-        # Count the number of shared vertices between tetra22l and tetra22r
-        shared_vertices = 0
-        for i in range(Constants.N_VERTICES_TETRA):
-            if tetra22r.has_vertex(tetra22l.get_vertices()[i]):
-                shared_vertices += 1
+def check_ishift_d(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int, int], int]:
+    """
+    Helper function to check if an inverse shift move is possible.
+    If possible, returns the labels of the tetrahedra to inverse shift.
+    """
+    # Pick a random (1,3)-tetrahedron
+    rng = random.Random()
+    t31_label = pick(tetras_31, tetras_31_size, rng)
+    t31 = tetrahedron_pool[t31_label]
+    t13 = t31.get_tetras()[3]
 
-        # Make sure the tetra is of type (2,2) and that they are neighbours and have 3 shared vertices
-        if (
-            tetra22l.is_22()
-            and tetra22r.is_22()
-            and tetra22l.check_neighbours_tetra(tetra22r)
-            and shared_vertices == 3
-            and self.universe.ishift_d(
-                tetra13_id=tetra13.ID,
-                tetra22l_id=tetra22l.ID,
-                tetra22r_id=tetra22r.ID,
-                perform=False)
-        ):
-            return tetra13.ID, tetra22l.ID, tetra22r.ID
-        else:
-            return -1
-        
-    def __del__(self):
-        self.universe_shm.close()
-        self.universe_shm.unlink()
+    # Get random (2,2) neighbours of t13
+    random_neighbour = rng.randint(0, 2)
+    t22l = t13.get_tetras()[1 + random_neighbour]
+    t22r = t13.get_tetras()[1 + (random_neighbour + 2) % 3]
+
+    # Get the vertices of the inner triangle
+    v1 = t13.get_vertices()[0]
+    v3 = t22l.get_vertex_opposite_tetra(t13)
+    v4 = t13.get_vertex_opposite_tetra(t22l)
+
+    # Get the remaining vertices
+    v4pos = np.where(t31.get_vertices() == v4)[0][0]
+    v0 = t31.get_vertices()[(v4pos + 1) % 3]
+    v2 = t31.get_vertices()[(v4pos + 2) % 3]
+
+    # Get the neighbouring tetrahedra
+    ta023 = t22l.get_tetra_opposite(v1)
+    ta034 = t22r.get_tetra_opposite(v1)
+    ta123 = t22l.get_tetra_opposite(v0)
+    ta124 = t13.get_tetra_opposite(v0)
+    ta134 = t22r.get_tetra_opposite(v0)
+    
+    # Count the number of shared vertices between t22l and t22r
+    shared_vertices = 0
+    for i in range(N_VERTICES_TETRA):
+        if t22r.has_vertex(t22l.get_vertices()[i]):
+            shared_vertices += 1
+
+    # Make sure the tetra is of type (2,2) and that they are neighbours and have 3 shared vertices
+    if (
+        t22l.is_22()
+        and t22r.is_22()
+        and t22l.check_neighbours_tetra(t22r)
+        and shared_vertices == 3
+        and ta023.has_vertex(v4)
+        and ta123.has_vertex(v4)
+        and ta034.has_vertex(v2)
+        and ta124.has_vertex(v3)
+        and ta134.has_vertex(v2)
+    ):
+        return t13.ID, t22l.ID, t22r.ID
+    else:
+        return -1

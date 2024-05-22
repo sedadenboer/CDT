@@ -46,7 +46,7 @@ def random_walk(universe: Universe, sigma_max: int, n_walkers: int, spatial_flag
     for _ in range(n_walkers):
         v = v_i
         for sigma in range(1, sigma_max + 1):
-            # Get the spatial neighbours of the current vertex and move to a random one
+            # Get the neighbours of the current vertex and move to a random one
             neighbours = connections[v]
             v = np.random.choice(neighbours)
 

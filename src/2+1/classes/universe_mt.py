@@ -204,12 +204,13 @@ class Universe:
         """
         # Get the tetrahedron object, the time, and its opposite neighbor
         t = self.tetrahedron_pool.get(tetra31_id)
-        if not t.is_31():
-            return False
         time = t.get_vertices()[0].time
         tv = t.get_tetras()[3]
-        if not tv.is_13():
-            return False
+        # Double check if the tetrahedron is of the right type
+        # if not t.is_31():
+        #     return False
+        # if not tv.is_13():
+        #     return False
 
         if perform:
             # Create a new vertex and update its cnum and scnum
@@ -323,18 +324,19 @@ class Universe:
         """
          # Get the vertex object, its time and the two opposing tetrahedra it is part of
         vertex = self.vertex_pool.get(vertex_id)
-        if vertex.cnum != self.Constants.CNUM_ADD:
-            return False
-        if vertex.scnum != self.Constants.SCNUM_ADD:
-            return False
+        # if vertex.cnum != self.Constants.CNUM_ADD:
+        #     return False
+        # if vertex.scnum != self.Constants.SCNUM_ADD:
+        #     return False
         time = vertex.time
         t01 = vertex.get_tetra()
         tv01 = t01.get_tetras()[3]
 
-        if not t01.is_31():
-            return False
-        if not tv01.is_13():
-            return False
+        # # Double check the tetrahedra are of the right type
+        # if not t01.is_31():
+        #     return False
+        # if not tv01.is_13():
+        #     return False
 
         # Get the vertex index in the tetrahedron
         vpos = np.where(t01.get_vertices() == vertex)[0][0]
@@ -351,18 +353,18 @@ class Universe:
         tv12 = tv01.get_tetra_opposite(v0)
         tv20 = tv01.get_tetra_opposite(v1)
 
-        if not t01.is_31():
-            return False
-        if not t12.is_31():
-            return False
-        if not t20.is_31():
-            return False
-        if not tv01.is_13():
-            return False
-        if not tv12.is_13():
-            return False
-        if not tv20.is_13():
-            return False
+        # if not t01.is_31():
+        #     return False
+        # if not t12.is_31():
+        #     return False
+        # if not t20.is_31():
+        #     return False
+        # if not tv01.is_13():
+        #     return False
+        # if not tv12.is_13():
+        #     return False
+        # if not tv20.is_13():
+        #     return False
   
         # Get the neighbours of tetras that will be adjusted
         to01 = t01.get_tetra_opposite(vertex)
@@ -372,22 +374,22 @@ class Universe:
         tvo12 = tv12.get_tetra_opposite(vertex)
         tvo20 = tv20.get_tetra_opposite(vertex)
 
-        # Disallow tadpole insertions
-        if self.strictness == 1:
-            if v0.scnum < 3:
-                return False
-            if v1.scnum < 3:
-                return False
-            if v2.scnum < 3:
-                return False
-        # Disallow self-energy insertions
-        elif self.strictness >= 2:
-            if v0.scnum < 4:
-                return False
-            if v1.scnum < 4:
-                return False
-            if v2.scnum < 4:
-                return False
+        # # Disallow tadpole insertions
+        # if self.strictness == 1:
+        #     if v0.scnum < 3:
+        #         return False
+        #     if v1.scnum < 3:
+        #         return False
+        #     if v2.scnum < 3:
+        #         return False
+        # # Disallow self-energy insertions
+        # elif self.strictness >= 2:
+        #     if v0.scnum < 4:
+        #         return False
+        #     if v1.scnum < 4:
+        #         return False
+        #     if v2.scnum < 4:
+        #         return False
        
         if perform:
             # Create new tetrahedra
@@ -492,16 +494,16 @@ class Universe:
         tv012 = t012.get_tetras()[3]
         tv230 = t230.get_tetras()[3]
         
-        if not t012.is_31():
-            return False
-        if not t230.is_31():
-            return False
-        if not tv012.is_13():
-            return False
-        if not tv230.is_13():
-            return False
-        if not tv012.check_neighbours_tetra(tv230):
-            return False
+        # if not t012.is_31():
+        #     return False
+        # if not t230.is_31():
+        #     return False
+        # if not tv012.is_13():
+        #     return False
+        # if not tv230.is_13():
+        #     return False
+        # if not tv012.check_neighbours_tetra(tv230):
+        #     return False
         
         # Get apex of the opposing tetrahedra
         vt = t012.get_vertices()[3]
@@ -516,18 +518,18 @@ class Universe:
         v2 = t012.get_vertices()[(v1pos + 1) % 3]
         v0 = t012.get_vertices()[(v1pos + 2) % 3]
 
-        # Manifold conditions
-        if self.strictness >= 1:
-            if v1 == v3:
-                return False
-        if self.strictness >= 2:
-            if v0.scnum < 4:
-                return False
-            if v2.scnum < 4:
-                return False
-        if self.strictness >= 3:
-            if v1.check_vertex_neighbour(v3):
-                return False
+        # # Manifold conditions
+        # if self.strictness >= 1:
+        #     if v1 == v3:
+        #         return False
+        # if self.strictness >= 2:
+        #     if v0.scnum < 4:
+        #         return False
+        #     if v2.scnum < 4:
+        #         return False
+        # if self.strictness >= 3:
+        #     if v1.check_vertex_neighbour(v3):
+        #         return False
 
         # Get opposite neighbouring tetrahedra
         ta01 = t012.get_tetra_opposite(v2)
@@ -539,15 +541,15 @@ class Universe:
         tva23 = tv230.get_tetra_opposite(v0)
         tva30 = tv230.get_tetra_opposite(v2)
 
-        # Make sure the move is valid
-        if ta01 == t230:
-            return False
-        if ta23 == t012:
-            return False
-        if tva01 == tv230:  
-            return False
-        if tva23 == tv012:
-            return False
+        # # Make sure the move is valid
+        # if ta01 == t230:
+        #     return False
+        # if ta23 == t012:
+        #     return False
+        # if tva01 == tv230:  
+        #     return False
+        # if tva23 == tv012:
+        #     return False
 
         if perform:
             # Opposite vertices in opposite tetrahedra
@@ -634,17 +636,17 @@ class Universe:
         ta124 = t22.get_tetra_opposite(v3)
         ta134 = t22.get_tetra_opposite(v2)
 
-        # Check if the move is valid
-        if ta023.has_vertex(v1):
-            return False
-        if ta123.has_vertex(v0):
-            return False
-        if ta034.has_vertex(v1):
-            return False
-        if ta134.has_vertex(v0):
-            return False
-        if v0.check_vertex_neighbour(v1):
-            return False
+        # # Check if the move is valid
+        # if ta023.has_vertex(v1):
+        #     return False
+        # if ta123.has_vertex(v0):
+        #     return False
+        # if ta034.has_vertex(v1):
+        #     return False
+        # if ta134.has_vertex(v0):
+        #     return False
+        # if v0.check_vertex_neighbour(v1):
+        #     return False
 
         if perform:
             # Create new tetrahedra
@@ -737,17 +739,17 @@ class Universe:
         ta124 = t31.get_tetra_opposite(v0)
         ta134 = t22r.get_tetra_opposite(v0)
 
-        # Make sure the move is valid
-        if ta023.has_vertex(v4):
-            return False
-        if ta123.has_vertex(v4):
-            return False
-        if ta034.has_vertex(v2):
-            return False
-        if ta124.has_vertex(v3):
-            return False
-        if ta134.has_vertex(v2):
-            return False
+        # # Make sure the move is valid
+        # if ta023.has_vertex(v4):
+        #     return False
+        # if ta123.has_vertex(v4):
+        #     return False
+        # if ta034.has_vertex(v2):
+        #     return False
+        # if ta124.has_vertex(v3):
+        #     return False
+        # if ta134.has_vertex(v2):
+        #     return False
 
         if perform:
             # Create new tetrahedra
@@ -837,17 +839,17 @@ class Universe:
         ta124 = t22.get_tetra_opposite(v3)
         ta134 = t22.get_tetra_opposite(v2)
 
-        # Make sure the move is valid	
-        if ta023.has_vertex(v1):
-            return False
-        if ta123.has_vertex(v0):
-            return False
-        if ta034.has_vertex(v1):
-            return False
-        if ta134.has_vertex(v0):
-            return False
-        if v0.check_vertex_neighbour(v1):
-            return False
+        # # Make sure the move is valid	
+        # if ta023.has_vertex(v1):
+        #     return False
+        # if ta123.has_vertex(v0):
+        #     return False
+        # if ta034.has_vertex(v1):
+        #     return False
+        # if ta134.has_vertex(v0):
+        #     return False
+        # if v0.check_vertex_neighbour(v1):
+        #     return False
         
         if perform:
             # Create new tetrahedra
@@ -933,17 +935,17 @@ class Universe:
         ta124 = t13.get_tetra_opposite(v0)
         ta134 = t22r.get_tetra_opposite(v0)
 
-        # Make sure the move is valid
-        if ta023.has_vertex(v4):
-            return False
-        if ta123.has_vertex(v4):
-            return False
-        if ta034.has_vertex(v2):
-            return False
-        if ta124.has_vertex(v3):
-            return False
-        if ta134.has_vertex(v2):
-            return False
+        # # Make sure the move is valid
+        # if ta023.has_vertex(v4):
+        #     return False
+        # if ta123.has_vertex(v4):
+        #     return False
+        # if ta034.has_vertex(v2):
+        #     return False
+        # if ta124.has_vertex(v3):
+        #     return False
+        # if ta134.has_vertex(v2):
+        #     return False
 
         if perform:
             # Create new tetrahedra

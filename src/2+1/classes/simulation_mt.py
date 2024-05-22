@@ -11,15 +11,31 @@ import numpy as np
 import gc
 from universe_mt import Universe
 from observable import Observable
-from typing import TYPE_CHECKING, List, Tuple, Dict, Any, Union
+from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 if TYPE_CHECKING:
     from universe import Universe
 from helper_functions.helpers import total_size
 import multiprocessing
-from multiprocessing import Pool, Manager, shared_memory
-from check_mt import check_delete, check_flip, check_shift_u, check_shift_d, check_ishift_u, check_ishift_d
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from multiprocessing import Pool, shared_memory
+from check_mt import *
+import pickle
 
+
+def get_move_check(move: str, *args) -> int:
+    """
+    """
+    if move == 'delete':
+        return check_delete(*args)
+    elif move == 'flip':
+        return check_flip(*args)
+    elif move == 'shift_u':
+        return check_shift_u(*args)
+    elif move == 'shift_d':
+        return check_shift_d(*args)
+    elif move == 'ishift_u':
+        return check_ishift_u(*args)
+    elif move == 'ishift_d':
+        return check_ishift_d(*args)
 
 class Simulation:
     """
@@ -64,55 +80,58 @@ class Simulation:
         N_MOVES = 5
         
     def __init__(self,
-                    universe: Universe, seed: int,
-                    k0: int, k3: int, tune_flag: bool = True,
-                    thermal_sweeps: int = 10, sweeps: int = 10, k_steps: int = 1000,
-                    v1: int = 1, v2: int = 1, v3: int = 1,
-                    volfix_switch: int = 0, target_volume: int = 0, target2_volume: int = 0, epsilon: float = 0.00005,
-                    observables: List[Observable] = [], include_mcmc_data: bool = True,
-                    measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
-                    save_main: bool = False, save_thermal: bool = False, saving_interval: int = 1,
-                    validity_check: bool = False,
-                    n_proposals: int = 5
-            ):
-            self.universe: Universe = universe
-            self.rng: random.Random = random.Random(seed)
-            self.k0: int = k0
-            self.k3: int = k3
-            self.tune_flag: bool = tune_flag
-            self.thermal_sweeps = thermal_sweeps
-            self.sweeps: int = sweeps
-            self.k_steps: int = k_steps
-            self.volfix_switch: int = volfix_switch
-            self.target_volume: int = target_volume
-            self.target2_volume: int = target2_volume
-            self.epsilon: float = epsilon
-            self.validity_check: bool = validity_check
-            self.save_main: bool = save_main
-            self.save_thermal: bool = save_thermal
-            self.saving_interval: int = saving_interval
-            self.measuring_interval: int = measuring_interval
-            self.measuring_thermal: bool = measuring_thermal
-            self.measuring_main: bool = measuring_main
-            self.include_mcmc_data: bool = include_mcmc_data
-            self.n_proposals: int = n_proposals
-            assert self.n_proposals <= multiprocessing.cpu_count(), "Number of proposals should be less than or equal to the number of CPU cores."
-            
-            # Initialize data structures for MCMC data and set the frequencies of the moves
-            self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
-            self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
-            self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables}
-            
-            # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
-            self.successes: List[np.ndarray] = []
-            self.fails: List[np.darray] = []
-            self.acceptance_ratios = []
-            self.k3_values = []
+                universe: Universe, seed: int,
+                k0: int, k3: int, tune_flag: bool = True,
+                thermal_sweeps: int = 10, sweeps: int = 10, k_steps: int = 1000,
+                v1: int = 1, v2: int = 1, v3: int = 1,
+                volfix_switch: int = 0, target_volume: int = 0, target2_volume: int = 0, epsilon: float = 0.00005,
+                observables: List[Observable] = [], include_mcmc_data: bool = True,
+                measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
+                save_main: bool = False, save_thermal: bool = False, saving_interval: int = 1,
+                validity_check: bool = False,
+                n_proposals: int = 5
+        ):
+        self.universe: Universe = universe
+        self.rng: random.Random = random.Random(seed)
+        self.k0: int = k0
+        self.k3: int = k3
+        self.tune_flag: bool = tune_flag
+        self.thermal_sweeps = thermal_sweeps
+        self.sweeps: int = sweeps
+        self.k_steps: int = k_steps
+        self.volfix_switch: int = volfix_switch
+        self.target_volume: int = target_volume
+        self.target2_volume: int = target2_volume
+        self.epsilon: float = epsilon
+        self.validity_check: bool = validity_check
+        self.save_main: bool = save_main
+        self.save_thermal: bool = save_thermal
+        self.saving_interval: int = saving_interval
+        self.measuring_interval: int = measuring_interval
+        self.measuring_thermal: bool = measuring_thermal
+        self.measuring_main: bool = measuring_main
+        self.include_mcmc_data: bool = include_mcmc_data
+        self.n_proposals: int = n_proposals
+        assert self.n_proposals <= multiprocessing.cpu_count(), "Number of proposals should be less than or equal to the number of CPU cores."
+        
+        # Initialize data structures for MCMC data and set the frequencies of the moves
+        self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
+        self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
+        self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables}
+        
+        # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
+        self.successes: List[np.ndarray] = []
+        self.fails: List[np.darray] = []
+        self.acceptance_ratios = []
+        self.k3_values = []
 
-            # Calculate cumulative frequencies
-            self.cum_freqs = np.cumsum(self.move_freqs)
-            self.freq_total = sum(self.move_freqs)
+        # Calculate cumulative frequencies
+        self.cum_freqs = np.cumsum(self.move_freqs)
+        self.freq_total = sum(self.move_freqs)
 
+        # Create a pool for parallel execution
+        self.pool = Pool(self.n_proposals)
+    
     def start(self, outfile: str = 'output'):
         """
         Starts the MCMC CDT 2+1 simulation.
@@ -273,7 +292,11 @@ class Simulation:
 
         # Print the sizes of the observables final
         for obs, data in self.observables.items():
-            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")  
+            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB") 
+
+        # Close the pool
+        self.pool.close()
+        self.pool.join()
 
     def get_observable_data(self, name: str) -> Any:
         """
@@ -310,43 +333,90 @@ class Simulation:
         else:
             raise ValueError(f"Observable {name} not found.")
     
-    def attempt_move(self) -> int:
+    def choose_move(self) -> int:
         """
-        Attempt a move based on the move frequencies.
+        Chooses a move based on the acceptance probabilities.
 
         Returns:
-            int: The move number. 
-            1 for add, 2 for delete, 3 for flip, 4 for shift, 5 for inverse shift.
-            Negative numbers indicate failed moves.
-        """  
-        # Generate a random number to select a move pair
-        move = self.rng.randint(0, self.freq_total)
+            int: The move to perform.
+        """
+        # Choose a move with a weight proportional to the acceptance ratio
+        moves = {'add': min(self.get_acceptance_probability(1), 1),
+            'delete': min(self.get_acceptance_probability(2), 1),
+            'flip': min(self.get_acceptance_probability(3), 1),
+            'shift_u': min(self.get_acceptance_probability(4), 1) / 2,
+            'shift_d': min(self.get_acceptance_probability(4), 1) / 2,
+            'ishift_u': min(self.get_acceptance_probability(5), 1) / 2,
+            'ishift_d': min(self.get_acceptance_probability(5), 1) / 2
+        }
+        
+        return self.rng.choices(list(moves.keys()), weights=list(moves.values()))[0]
+    
+    def add_task(self, func, *args):
+        """
+        Add a new task to the pool.
 
-        if move < self.cum_freqs[0]:
-            # Add or delete move
-            if self.rng.randint(0, 1) == 0:
-                return 1 if self.move_add() else -1
-            else:
-                return 2 if self.move_delete() else -2
-        elif self.cum_freqs[0] <= move and move < self.cum_freqs[1]:
-            # Flip move
-            return 3 if self.move_flip() else -3
-        elif self.cum_freqs[1] <= move:
-            # Shift or inverse shift move
-            if self.rng.randint(0, 1) == 0:
-                # Shift (3,1) or (1,3) move
-                if self.rng.randint(0, 1) == 0:
-                    return 4 if self.move_shift_u() else -4
-                else:
-                    return 4 if self.move_shift_d() else -4
-            else:
-                # Inverse shift (3,1) or (1,3) move
-                if self.rng.randint(0, 1) == 0:
-                    return 5 if self.move_ishift_u() else -5
-                else:
-                    return 5 if self.move_ishift_d() else -5
- 
-        return 0
+        Args:
+            func (function): The function to execute.
+            *args: The arguments to pass to the function.
+
+        Returns:
+            Any: The result of the function.
+        """
+        return self.pool.apply_async(func, args)
+
+    def spawn_move(self, move: str) -> List[int]:
+        """
+        Execute all tasks in the pool and collect results.
+        """
+        args_per_move = {
+            'delete': (self.universe.vertex_pool.elements, self.universe.vertex_pool.size),
+            'flip': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
+            'shift_u': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
+            'shift_d': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
+            'ishift_u': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size),
+            'ishift_d': (self.universe.tetras_31.elements, self.universe.tetrahedron_pool.elements, self.universe.tetras_31.size)
+        }
+
+        # Generate the tasks
+        results = [self.add_task(get_move_check, move, *args_per_move[move]) for _ in range(self.n_proposals)]
+        output = []
+
+        # Collect the results
+        for result in results:
+            try:
+                output.append(result.get())
+            except Exception as e:
+                print(f"Task generated an exception: {e}")
+          
+        print(f"{move}: Task completed with result: {output}")
+        
+        return output
+    
+    def get_move(self, move: str) -> bool:
+        """
+        Get the move to perform and execute it.
+
+        Args:
+            move (str): The move to perform.
+
+        Returns:
+            bool: True if the move was executed, False otherwise.
+        """
+        if move == 'add':
+            return self.move_add()
+        elif move == 'delete':
+            return self.move_delete()
+        elif move == 'flip':
+            return self.move_flip()
+        elif move == 'shift_u':
+            return self.move_shift_u()
+        elif move == 'shift_d':
+            return self.move_shift_d()
+        elif move == 'ishift_u':
+            return self.move_ishift_u()
+        elif move == 'ishift_d':
+            return self.move_ishift_d()
 
     def perform_sweep(self, n: int) -> Tuple[List[int], List[int]]:
         """
@@ -359,25 +429,23 @@ class Simulation:
         Returns:
             Tuple[List[int], List[int]]: The gathered counts and failed counts.
         """
-        gathered_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
-        gathered_failed_counts = np.zeros(self.Constants.N_MOVES, dtype=int)
-        move_num = 0
-        move = 0
+        move_map = {'add': 0,'delete': 1,'flip': 2,'shift_u': 3,'shift_d': 3,'ishift_u': 4,'ishift_d': 4}
+        successes = np.zeros(self.Constants.N_MOVES, dtype=int)
+        fails = np.zeros(self.Constants.N_MOVES, dtype=int)
 
         # Perform n moves
-        for _ in range(n):
-            move_num = self.attempt_move()
-            move = abs(move_num)
-
-            # Update the move counters
-            if move_num > 0:
-                gathered_counts[move - 1] += 1
+        for i in range(n):
+            move = self.choose_move()
+            print(f"\n{i}, MOVE CHOSEN: {move}")
+            passed = self.get_move(move)
+            if passed == True:
+                print(f"Move {move} passed.")
+                successes[move_map[move]] += 1
             else:
-                gathered_failed_counts[move - 1] += 1
+                fails[move_map[move]] += 1
 
-        print(f"FAILED Add: {gathered_failed_counts[0]}, Delete: {gathered_failed_counts[1]}, Flip: {gathered_failed_counts[2]}, Shift: {gathered_failed_counts[3]}, Inverse shift: {gathered_failed_counts[4]}")
-        print(f"COUNTS Add: {gathered_counts[0]}, Delete: {gathered_counts[1]}, Flip: {gathered_counts[2]}, Shift: {gathered_counts[3]}, Inverse shift: {gathered_counts[4]}")
-        return gathered_counts, gathered_failed_counts
+        print(f"Successes: {successes}, \nFails: {fails}")
+        return successes, fails
 
     def mcmc_check(self, acceptance_probability: float) -> bool:
         """
@@ -481,20 +549,19 @@ class Simulation:
         # Perform MCMC check for acceptance
         if not self.mcmc_check(self.get_acceptance_probability(2)):
             return False
-
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_delete, [self.shared_universe] * self.n_proposals)
         
-        # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [vertex_label for vertex_label in results if vertex_label != -1]
+        # Do move in parallel
+        output = self.spawn_move('delete')
 
+        # Filter out the valid proposals, i.e. entries that are not -1
+        valid_proposals = [tetra_label for tetra_label in output if tetra_label != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_vertex_label = self.rng.choice(valid_proposals)
+            print(f"Random vertex: {random_vertex_label}")
             return self.universe.delete(vertex_id=random_vertex_label, perform=True)
-
-        return False
-
+        
     def move_flip(self) -> bool:
         """
         Metropolis-Hastings move to flip a tetrahedron.
@@ -503,15 +570,16 @@ class Simulation:
         Returns:
             bool: True if the move was accepted, False otherwise.
         """
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_flip, [self.shared_universe] * self.n_proposals)
+        # Do move in parallel
+        output = self.spawn_move('flip')
 
         # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
-
+        valid_proposals = [tetra_labels for tetra_labels in output if tetra_labels != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra012_label, random_tetra230_label = self.rng.choice(valid_proposals)
+            print(f"Random tetra012: {random_tetra012_label}, Random tetra230: {random_tetra230_label}")
             return self.universe.flip(tetra012_id=random_tetra012_label, tetra230_id=random_tetra230_label, perform=True)
         
         return False
@@ -528,15 +596,16 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
 
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_shift_u, [self.shared_universe] * self.n_proposals)
+        # Do move in parallel
+        output = self.spawn_move('shift_u')
 
         # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
-
+        valid_proposals = [tetra_labels for tetra_labels in output if tetra_labels != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra31_label, random_tetra22_label = self.rng.choice(valid_proposals)
+            print(f"Random tetra31: {random_tetra31_label}, Random tetra22: {random_tetra22_label}")
             return self.universe.shift_u(tetra31_id=random_tetra31_label, tetra22_id=random_tetra22_label, perform=True)
         
         return False
@@ -553,15 +622,16 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(4)):
             return False
         
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_shift_d, [self.shared_universe] * self.n_proposals)
+        # Do move in parallel
+        output = self.spawn_move('shift_d')
 
         # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
-
+        valid_proposals = [tetra_labels for tetra_labels in output if tetra_labels != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra13_label, random_tetra22_label = self.rng.choice(valid_proposals)
+            print(f"Random tetra13: {random_tetra13_label}, Random tetra22: {random_tetra22_label}")
             return self.universe.shift_d(tetra13_id=random_tetra13_label, tetra22_id=random_tetra22_label, perform=True)
         
         return False
@@ -578,15 +648,16 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
         
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_ishift_u, [self.shared_universe] * self.n_proposals)
+        # Do move in parallel
+        output = self.spawn_move('ishift_u')
 
         # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
-
+        valid_proposals = [tetra_labels for tetra_labels in output if tetra_labels != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra31_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
+            print(f"Random tetra31: {random_tetra31_label}, Random tetra22l: {random_tetra22l_label}, Random tetra22r: {random_tetra22r_label}")
             return self.universe.ishift_u(tetra31_id=random_tetra31_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label, perform=True)
 
         return False
@@ -603,15 +674,16 @@ class Simulation:
         if not self.mcmc_check(self.get_acceptance_probability(5)):
             return False
 
-        with Pool(self.n_proposals) as pool:
-            results = pool.map(check_ishift_d, [self.shared_universe] * self.n_proposals)
-        
-        # Filter out the valid proposals, i.e. entries that are not -1
-        valid_proposals = [tetra_labels for tetra_labels in results if tetra_labels != -1]
+        # Do move in parallel
+        output = self.spawn_move('ishift_d')
 
+        # Filter out the valid proposals, i.e. entries that are not -1
+        valid_proposals = [tetra_labels for tetra_labels in output if tetra_labels != -1]
+        print(f"Output: {output}, valid proposals: {valid_proposals}")
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra13_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
+            print(f"Random tetra13: {random_tetra13_label}, Random tetra22l: {random_tetra22l_label}, Random tetra22r: {random_tetra22r_label}")
             return self.universe.ishift_d(tetra13_id=random_tetra13_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label, perform=True)
         
         return False
@@ -661,13 +733,6 @@ class Simulation:
         elif (self.target_volume - fixvolume) < -border_vvclose:
             self.k3 += delta_k3 * 20
 
-    def trial(self):
-        for _ in range(10):
-            attempted = self.attempt_move()
-            print(f"Attempted move: {attempted}")
-            if attempted > 0:
-                self.universe.check_validity()
-
 
 if __name__ == "__main__":
     universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
@@ -679,10 +744,10 @@ if __name__ == "__main__":
         k0=0,
         k3=0.8,
         tune_flag=True,
-        thermal_sweeps=50,
+        thermal_sweeps=1,
         sweeps=0,
-        k_steps=300000,
-        target_volume=3000, # Without tune does not do anything
+        k_steps=100,
+        target_volume=1000, # Without tune does not do anything
         observables=observables,
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
@@ -691,7 +756,7 @@ if __name__ == "__main__":
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
-        validity_check=False,
+        validity_check=True,
         n_proposals=8
     )
 
