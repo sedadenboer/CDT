@@ -14,12 +14,7 @@ def pick(array, size, rng) -> int:
     if len(array) == 0:
         raise Exception("Empty.")
     else:
-        # Pick random element from pool
-        random_element = array[rng.randint(0, size - 1)]
-        while not random_element or random_element == -1:
-            random_element = array[rng.randint(0, size - 1)]
-
-        return random_element
+        return rng.choice(array[:size])
 
 def check_delete(vertex_pool, vertex_pool_size) -> int:
     """
