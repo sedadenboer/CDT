@@ -1,4 +1,4 @@
-# check_mt.py
+# check_mt_ray.py
 #
 # Author: Seda den Boer
 # Date: 15-05-2024
@@ -9,9 +9,10 @@
 # whereas these functions have a check part that returns a the labels of the vertex/
 # tetrahedra if the move is possible, or -1 if the move is not possible.
 
-import numpy as np
+import ray
 import random
-from typing import Union, Tuple
+import numpy as np
+from typing import Tuple, Union
 
 N_VERTICES_TETRA = 4
 N_VERTICES_TRIANGLE = 3
@@ -40,11 +41,11 @@ def pick(array: np.ndarray, size: int, rng: random.Random) -> int:
 
         return random_element
 
-def check_delete(shared_objects, vertex_pool_size) -> int:
+@ray.remote
+def check_delete(vertex_pool, vertex_pool_size) -> int:
     """
     Helper function to check if a vertex can be deleted.
     """
-    vertex_pool = shared_objects['vertex_pool']
     # Get a random vertex
     rng = random.Random()
     vertex = pick(vertex_pool, vertex_pool_size, rng)
@@ -82,15 +83,13 @@ def check_delete(shared_objects, vertex_pool_size) -> int:
         return vertex.ID
     else:
         return -1
-    
-def check_flip(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]:
+
+@ray.remote
+def check_flip(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
     """
     Helper function to check if a flip move is possible.
     If possible, returns the labels of the tetrahedra to flip.
     """
-    tetrahedron_pool = shared_objects['tetrahedron_pool']
-    tetras_31 = shared_objects['tetras_31']
-
     # Pick a random (3,1)-tetrahedron
     rng = random.Random()
     t012_label = pick(tetras_31, tetras_31_size, rng)
@@ -117,9 +116,7 @@ def check_flip(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]:
     ta01 = t012.get_tetra_opposite(v2)
     ta23 = t230.get_tetra_opposite(v0)
     tva01 = tv012.get_tetra_opposite(v2)
-    tva12 = tv012.get_tetra_opposite(v0)
     tva23 = tv230.get_tetra_opposite(v0)
-
     
     # Check if the tetrahedron is actually flippable (opposite tetras should also be neighbours)
     if (
@@ -144,15 +141,13 @@ def check_flip(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]:
         return t012_label, t230.ID
     else:
         return -1
-        
-def check_shift_u(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]:
+
+@ray.remote 
+def check_shift_u(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
     """
     Helper function to check if a shift move is possible.
     If possible, returns the labels of the tetrahedra to shift.
     """
-    tetrahedron_pool = shared_objects['tetrahedron_pool']
-    tetras_31 = shared_objects['tetras_31']
-
     # Pick a random (3,1)-tetrahedron
     rng = random.Random()
     t31_label = pick(tetras_31, tetras_31_size, rng)
@@ -189,15 +184,13 @@ def check_shift_u(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]
         return t31_label, t22.ID
     else:
         return -1
-        
-def check_shift_d(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]:
+
+@ray.remote      
+def check_shift_d(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int], int]:
     """
     Helper function to check if a shift move is possible.
     If possible, returns the labels of the tetrahedra to shift.
     """
-    tetrahedron_pool = shared_objects['tetrahedron_pool']
-    tetras_31 = shared_objects['tetras_31']
-
     # Pick a random (1,3)-tetrahedron
     rng = random.Random()  
     t31_label = pick(tetras_31, tetras_31_size, rng)
@@ -236,14 +229,12 @@ def check_shift_d(shared_objects, tetras_31_size) -> Union[Tuple[int, int], int]
     else:
         return -1
 
-def check_ishift_u(shared_objects, tetras_31_size) -> Union[Tuple[int, int, int], int]:
+@ray.remote
+def check_ishift_u(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int, int], int]:
     """
     Helper function to check if an inverse shift move is possible.
     If possible, returns the labels of the tetrahedra to inverse shift.
     """
-    tetrahedron_pool = shared_objects['tetrahedron_pool']
-    tetras_31 = shared_objects['tetras_31']
-
     # Pick a random (3,1)-tetrahedron
     rng = random.Random()
     t31_label = pick(tetras_31, tetras_31_size, rng)
@@ -293,14 +284,12 @@ def check_ishift_u(shared_objects, tetras_31_size) -> Union[Tuple[int, int, int]
     else:
         return -1
 
-def check_ishift_d(shared_objects, tetras_31_size) -> Union[Tuple[int, int, int], int]:
+@ray.remote
+def check_ishift_d(tetras_31, tetrahedron_pool, tetras_31_size) -> Union[Tuple[int, int, int], int]:
     """
     Helper function to check if an inverse shift move is possible.
     If possible, returns the labels of the tetrahedra to inverse shift.
     """
-    tetrahedron_pool = shared_objects['tetrahedron_pool']
-    tetras_31 = shared_objects['tetras_31']
-
     # Pick a random (1,3)-tetrahedron
     rng = random.Random()
     t31_label = pick(tetras_31, tetras_31_size, rng)

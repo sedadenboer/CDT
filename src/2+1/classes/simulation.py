@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 if TYPE_CHECKING:
     from universe import Universe
 from helper_functions.helpers import total_size
+import time
 
 
 class Simulation:
@@ -707,15 +708,16 @@ if __name__ == "__main__":
     universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
     observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections']
 
+    start = time.time()
     simulation = Simulation(
         universe=universe,
         seed=0,
         k0=0,
         k3=0.8,
         tune_flag=True,
-        thermal_sweeps=20,
+        thermal_sweeps=5,
         sweeps=0,
-        k_steps=300000,
+        k_steps=100,
         target_volume=3000, # Without tune does not do anything
         observables=observables,
         include_mcmc_data=False,
@@ -725,12 +727,14 @@ if __name__ == "__main__":
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
-        validity_check=True
+        validity_check=False
     )
 
     simulation.start(
         outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
     )
 
+    print(f"Time taken: {time.time() - start}")
+
     simulation.universe.check_validity()
-    simulation.trial()
+
