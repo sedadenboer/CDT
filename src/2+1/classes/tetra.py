@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from vertex import Vertex
     from tetra import Tetrahedron
 import numpy as np
-import weakref
 
 
 class Tetrahedron:
@@ -250,8 +249,3 @@ class Tetrahedron:
         print(f"Vertices: {[v.ID for v in self.vs]}, time: {[v.time for v in self.vs]}")
         print(f"Neighbours: {[t.ID for t in self.tnbr]}, time: {[t.time for t in self.tnbr]}")
         print()
-
-    # def __del__(self):
-    #     self.clear_references()
-    #     del self
-    #     print(f"Tetrahedron {self.ID} deleted")

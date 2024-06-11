@@ -1244,7 +1244,7 @@ class Universe:
 
 if __name__ == "__main__":
     # u = Universe(geometry_infilename="initial_universes/sample-g0-T3.cdt")
-    u = Universe(geometry_infilename="initial_universes/output_g=0_T=200.txt")
-    # u.update_vertices()
+    u = Universe(geometry_infilename="initial_universes/initial_t3.txt")
+    u.update_vertices()
     # u.check_validity()
-    # u.log()
+    u.log()

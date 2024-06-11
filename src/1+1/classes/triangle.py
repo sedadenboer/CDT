@@ -304,3 +304,16 @@ class Triangle:
         
         if self.vl_.time == 0 and self.vc_.time > 1:
             self.type = "DOWN"
+
+    def clear_references(self) -> None:
+        """
+        Clear all references to other objects.
+        """
+        self.tl_ = None
+        self.tr_ = None
+        self.tc_ = None
+        self.vl_ = None
+        self.vr_ = None
+        self.vc_ = None
+        self.time = None
+        self.type = None

@@ -205,3 +205,14 @@ class Vertex(object):
             list[Vertex]: Past neighbours of the vertex.
         """
         return self.past_neighbours
+    
+    def clear_references(self) -> None:
+        """
+        Clears all the references of the vertex.
+        """
+        self.tl_ = None
+        self.tr_ = None
+        self.vr_ = None
+        self.vl_ = None
+        self.past_neighbours = []
+        self.future_neighbours = []

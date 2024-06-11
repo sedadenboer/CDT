@@ -12,14 +12,6 @@ from triangle import Triangle
 from pool import Pool
 from bag import Bag
 import pickle
-import resource
-import sys
-
-max_rec = 0x100000
-
-# May segfault without this line. 0x100 is a guess at the size of each stack frame.
-resource.setrlimit(resource.RLIMIT_STACK, [0x100 * max_rec, resource.RLIM_INFINITY])
-sys.setrecursionlimit(max_rec)
 
 
 class Universe:
@@ -159,19 +151,6 @@ class Universe:
                     tc=initial_triangles[(row + column + 2 * width) % (2 * total_time * width)]
                 )
 
-        # # Print vertices in grid
-        # for i in range(total_time):
-        #     for j in range(width):
-        #         print(initial_vertices[i * width + j].ID, end=" ")
-        #     print()
-        
-        # # Print the triangles and their left, right, center vertices
-        # for t in initial_triangles:
-        #     print(f"triangle: {t.ID}")
-        #     print(f"vertex left, right, center: {t.vl_.ID, t.vr_.ID, t.vc_.ID}")
-        #     print(f"triangle left, right, center: {t.tl_.ID, t.tr_.ID, t.tc_.ID}")
-        #     print()
-        #     print()
         
     def insert_vertex(self, triangle_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
@@ -240,12 +219,10 @@ class Universe:
         if triangle2.type != triangle2.get_triangle_right().type:
             self.triangle_flip_bag.remove(tc.ID)
             self.triangle_flip_bag.add(triangle2.ID)
-    
+            
         # Update count of up and down oriented triangles
         self.triangle_up_count += 1
         self.triangle_down_count += 1
-            
-        return new_vertex, triangle1, triangle2
     
     def remove_vertex(self, vertex_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
@@ -308,21 +285,27 @@ class Universe:
             self.triangle_flip_bag.add(tlc.ID)
             # print(f"DEL removed {trc.ID} from flip bag and added {tlc.ID}\n")
 
+        # Clear references to avoid memory leaks
+        vertex.clear_references()
+        tr.clear_references()
+        trc.clear_references()
+
         # Remove deleted triangles from the triangle pool
         self.triangle_pool.free(tr.ID)
         self.triangle_pool.free(trc.ID)
+        del tr
+        del trc
 
         # Remove vertices that previously had degree 4 from the four vertices bag
         self.four_vertices_bag.remove(vertex.ID)
 
         # Free the deleted vertex ib the vertex pool
         self.vertex_pool.free(vertex.ID)
+        del vertex
 
         # Update count of up and down oriented triangles
         self.triangle_up_count -= 1
         self.triangle_down_count -= 1
-
-        return vertex, tr, trc
 
     def flip_edge(self, triangle_id : int) -> tuple[Triangle, Triangle]:
         """
@@ -393,8 +376,6 @@ class Universe:
             self.triangle_flip_bag.add(triangle.get_triangle_left().ID)
         if not self.triangle_flip_bag.contains(tr.ID) and tr.type != tr.get_triangle_right().type:
             self.triangle_flip_bag.add(tr.ID)
-
-        return triangle, tr
     
     def is_four_vertex(self, vertex: Vertex) -> bool:
         """
