@@ -12,7 +12,8 @@ from triangle import Triangle
 from pool import Pool
 from bag import Bag
 import pickle
-
+import sys
+sys.setrecursionlimit(10**6)
 
 class Universe:
     """
@@ -223,6 +224,8 @@ class Universe:
         # Update count of up and down oriented triangles
         self.triangle_up_count += 1
         self.triangle_down_count += 1
+
+        # print(f"Inserted vertex {new_vertex.ID} at time {new_vertex.time} in triangle {triangle.ID}")
     
     def remove_vertex(self, vertex_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
@@ -293,19 +296,18 @@ class Universe:
         # Remove deleted triangles from the triangle pool
         self.triangle_pool.free(tr.ID)
         self.triangle_pool.free(trc.ID)
-        del tr
-        del trc
 
         # Remove vertices that previously had degree 4 from the four vertices bag
         self.four_vertices_bag.remove(vertex.ID)
 
-        # Free the deleted vertex ib the vertex pool
+        # Free the deleted vertex in the vertex pool
         self.vertex_pool.free(vertex.ID)
-        del vertex
 
         # Update count of up and down oriented triangles
         self.triangle_up_count -= 1
         self.triangle_down_count -= 1
+
+        # print(f"Removed vertex {vertex.ID} at time {vertex.time} from triangle {tl.ID} and {tr.ID}")
 
     def flip_edge(self, triangle_id : int) -> tuple[Triangle, Triangle]:
         """
@@ -376,6 +378,8 @@ class Universe:
             self.triangle_flip_bag.add(triangle.get_triangle_left().ID)
         if not self.triangle_flip_bag.contains(tr.ID) and tr.type != tr.get_triangle_right().type:
             self.triangle_flip_bag.add(tr.ID)
+
+        # print(f"Flipped edge in triangle {triangle.ID} and {tr.ID}")
     
     def is_four_vertex(self, vertex: Vertex) -> bool:
         """
@@ -425,6 +429,7 @@ class Universe:
         Get the current state of the triangulation.
         """
         vertex_sheet = {}
+
         for id in self.vertex_pool.used_indices:
             vertex = self.vertex_pool.get(id)
 
@@ -435,7 +440,7 @@ class Universe:
                 vertex_sheet[vertex.time] = [vertex]
         
         # Sort the vertices in each time slice in the dictionary based on their right neighbour
-        # lop through the dictionary and sort the vertices in each time slice
+        # loop through the dictionary and sort the vertices in each time slice
         for key in vertex_sheet:
             vertex_sheet[key] = self.sort_vertices_periodic(vertex_sheet[key])
 
@@ -469,7 +474,7 @@ class Universe:
 
         # Check for validity of connections
         for y, row in enumerate(vertex_sheet):
-            assert len(row) > 3, f"Row {y} has {len(row)} vertices"
+            assert len(row) >= 3, f"Row {y} has {len(row)} vertices"
             for x, col in enumerate(row):
                 # Assert that each vertex has a left and right neighbour
                 space_neighbours = col.get_space_neighbours()

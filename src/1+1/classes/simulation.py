@@ -15,6 +15,7 @@ from universe import Universe
 from typing import TYPE_CHECKING, Tuple
 if TYPE_CHECKING:
     from triangle import Triangle
+import multiprocessing as mp
 
 
 class Simulation:
@@ -32,6 +33,7 @@ class Simulation:
     def __init__(self, universe: Universe, lambd: float, seed: int = 0, steps: int = 1000, weighted_moves: bool = False):
         self.universe = universe
         self.lambd = lambd
+        self.seed = seed
         self.rng = random.Random(seed)
         self.steps = steps
         self.weighted_moves = weighted_moves
@@ -51,7 +53,7 @@ class Simulation:
 
     def save_data(self):
         """
-        Save all the arrays to a numpy file.
+        Save all the arrays to a numpy file as well as the geometries.
 
         Args:
             filename (str): Name of the file to save the data to.
@@ -68,16 +70,19 @@ class Simulation:
             os.makedirs(pathname)
 
         # Save the data to numpy files
-        np.save(pathname + f"volume_changes_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.volume_changes))
-        np.save(pathname + f"ar_delete_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.ar_delete))
-        np.save(pathname + f"ar_add_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.ar_add))
-        np.save(pathname + f"ar_flip_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.ar_flip))
-        np.save(pathname + f"count_add_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.count_add))
-        np.save(pathname + f"count_delete_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.count_delete))
-        np.save(pathname + f"count_flip_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.count_flip))
-        np.save(pathname + f"failed_add_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.failed_add))
-        np.save(pathname + f"failed_delete_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.failed_delete))
-        np.save(pathname + f"failed_flip_stps={self.steps}_lambd={lambd_str}.npy", np.array(self.failed_flip))
+        np.save(pathname + f"volume_changes_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.volume_changes))
+        np.save(pathname + f"ar_delete_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.ar_delete))
+        np.save(pathname + f"ar_add_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.ar_add))
+        np.save(pathname + f"ar_flip_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.ar_flip))
+        np.save(pathname + f"count_add_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.count_add))
+        np.save(pathname + f"count_delete_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.count_delete))
+        np.save(pathname + f"count_flip_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.count_flip))
+        np.save(pathname + f"failed_add_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.failed_add))
+        np.save(pathname + f"failed_delete_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.failed_delete))
+        np.save(pathname + f"failed_flip_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.failed_flip))
+
+        # # Save the geometries
+        # self.universe.save_to_file(pathname + f"geometry_stps={self.steps}_lambd={lambd_str}_seed={self.seed}")
 
     def get_acceptance_ratio_and_object(self, move_type: int) -> Tuple[float, int]:
         """
@@ -95,9 +100,11 @@ class Simulation:
 
         # Compute acceptance ratios for the different move types
         if move_type == 1:
+            # Add
             triangle_id = self.universe.triangle_add_bag.pick()
             return (n0 / (n0_four + 1.0)) * np.exp(-2 * self.lambd), triangle_id
         elif move_type == 2:
+            # Delete
             # If there are no vertices of degree four
             if n0_four == 0:
                 return 0, 0
@@ -105,6 +112,7 @@ class Simulation:
             vertex_id = self.universe.four_vertices_bag.pick()
             return ((n0_four + 1.0) / n0) * np.exp(2 * self.lambd), vertex_id
         elif move_type == 3:
+            # Flip
             ntf = self.universe.triangle_flip_bag.get_number_occupied()
 
             # If there are no triangles to flip
@@ -115,7 +123,7 @@ class Simulation:
 
             # Flip move needs a specific triangle to compute the acceptance ratio
             triangle_id = self.universe.triangle_flip_bag.pick()
-            triangle: Triangle = self.universe.triangle_pool.get(triangle_id)
+            triangle = self.universe.triangle_pool.get(triangle_id)
 
             if triangle.type == triangle.get_triangle_right().get_triangle_right().type:
                 new_ntf += 1
@@ -162,12 +170,18 @@ class Simulation:
 
         vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
         slice_size = self.universe.slice_sizes[vertex_to_delete.time]
+        tries = 0
 
         # If there are not enough vertices to delete, pick a new vertex
-        while slice_size < self.Constants.SLICE_SIZE_LIMIT:
+        while slice_size <= self.Constants.SLICE_SIZE_LIMIT:
+            # If there are no vertices of degree four, return 0
+            if tries > 1000:
+                return 0
+            
             delete_ar, del_vertex_id = self.get_acceptance_ratio_and_object(2)
             vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
             slice_size = self.universe.slice_sizes[vertex_to_delete.time]
+            tries += 1
 
         # Save the acceptance ratios for statistics
         self.ar_add.append(add_ar)
@@ -268,6 +282,8 @@ class Simulation:
             # Attempt a move
             move_type = self.attempt_move()
 
+            # print(move_type)
+
             # Save the total size of the universe
             self.volume_changes.append(self.universe.get_total_size())
 
@@ -290,6 +306,12 @@ class Simulation:
             self.failed_add.append(add_failed_count)
             self.failed_delete.append(delete_failed_count)
             self.failed_flip.append(flip_failed_count)
+            
+            # Check if the universe is still valid
+            for size in self.universe.slice_sizes.values():
+                if size < self.Constants.SLICE_SIZE_LIMIT:
+                    print("Invalid universe")
+                    return
 
         end = time.time()
 
@@ -298,7 +320,7 @@ class Simulation:
 
         if not silence:
             print("...")
-            print(f"Progressing the Universe {self.steps} steps took {end-start} seconds")
+            print(f"Progressing the Universe (lambda = {self.lambd}) {self.steps} steps took {end-start} seconds")
             print(f"Add success count: {add_count}, delete success count: {delete_count}, flip success count: {flip_count}")
             print(f"Add failed count: {add_failed_count}, delete failed count: {delete_failed_count}, flip failed count: {flip_failed_count}")
             print(f"Total number of vertices: {self.universe.vertex_pool.get_number_occupied()}")
@@ -311,9 +333,15 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    # Set up the universe
-    universe = Universe(total_time=20, initial_slice_size=20)
-    simulation = Simulation(universe, lambd=np.log(2), seed=42, steps=1000, weighted_moves=True)
+    seed = 0
+    step = 0.005
+    lambda_values = np.arange(0.68, 0.78 + step, step)
 
-    # Progress the universe
-    simulation.progress_universe(silence=False, save_data=True)
+    for i, lambd in enumerate(lambda_values):
+        universe = Universe(total_time=50, initial_slice_size=40)
+        simulation = Simulation(universe, lambd=lambd, seed=seed, steps=1000000, weighted_moves=False)
+        simulation.progress_universe(silence=False, save_data=True)
+
+    # universe = Universe(total_time=50, initial_slice_size=40)
+    # simulation = Simulation(universe, lambd=0.71, seed=0, steps=1000000, weighted_moves=False)
+    # simulation.progress_universe(silence=False, save_data=False)
