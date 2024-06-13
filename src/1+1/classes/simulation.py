@@ -333,15 +333,25 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    seed = 0
-    step = 0.005
-    lambda_values = np.arange(0.68, 0.78 + step, step)
+    # seed = 0
+    # step = 0.005
+    # lambda_values = np.arange(0.68, 0.78 + step, step)
 
-    for i, lambd in enumerate(lambda_values):
-        universe = Universe(total_time=50, initial_slice_size=40)
-        simulation = Simulation(universe, lambd=lambd, seed=seed, steps=1000000, weighted_moves=False)
-        simulation.progress_universe(silence=False, save_data=True)
+    # for i, lambd in enumerate(lambda_values):
+    #     universe = Universe(total_time=50, initial_slice_size=40)
+    #     simulation = Simulation(universe, lambd=lambd, seed=seed, steps=1000000, weighted_moves=False)
+    #     simulation.progress_universe(silence=False, save_data=True)
 
     # universe = Universe(total_time=50, initial_slice_size=40)
     # simulation = Simulation(universe, lambd=0.71, seed=0, steps=1000000, weighted_moves=False)
     # simulation.progress_universe(silence=False, save_data=False)
+
+    lambd = 0.8
+    steps = 1000000
+    chains = 10
+    weighted_moves = False
+    
+    for i in range(chains):
+        universe = Universe(total_time=50, initial_slice_size=40)
+        simulation = Simulation(universe, lambd=lambd, seed=i, steps=steps, weighted_moves=weighted_moves)
+        simulation.progress_universe(silence=False, save_data=True)

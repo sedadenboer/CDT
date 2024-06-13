@@ -994,6 +994,8 @@ class Universe:
               
                 # Save the spacelinks of the vertex
                 for neighbour in tetra.get_vertices():
+                    # Avoid adding vertex being added to itself
+                    if neighbour.ID != vertex.ID:  
                         # Timelinks
                         vertex_links[vertex.ID].add(neighbour.ID)
 
