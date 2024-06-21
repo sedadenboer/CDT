@@ -54,6 +54,7 @@ class Simulation:
         save_thermal (bool, optional): Flag to save thermal data. Defaults to False.
         saving_interval (int, optional): The saving interval. Defaults to 1.
         validity_check (bool, optional): Flag to perform validity check. Defaults to False.
+        weighted_moves (bool, optional): Flag to use weighted moves. Defaults to False.
     """
     class Constants:
         N_VERTICES_TETRA = 4
@@ -69,7 +70,7 @@ class Simulation:
                     observables: List[Observable] = [], include_mcmc_data: bool = True,
                     measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
                     save_main: bool = False, save_thermal: bool = False, saving_interval: int = 1,
-                    validity_check: bool = False,
+                    validity_check: bool = False, weighted_moves: bool = False
             ):
             self.universe: Universe = universe
             self.rng: random.Random = random.Random(seed)
@@ -84,6 +85,7 @@ class Simulation:
             self.target2_volume: int = target2_volume
             self.epsilon: float = epsilon
             self.validity_check: bool = validity_check
+            self.weighted_moves: bool = weighted_moves
             self.save_main: bool = save_main
             self.save_thermal: bool = save_thermal
             self.saving_interval: int = saving_interval
@@ -162,7 +164,7 @@ class Simulation:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", k0=self.k0)
 
                 # Print the sizes of the observables every 100 sweeps
-                if i % 100 == 0:
+                if self.measuring_thermal and i % 100 == 0:
                     for obs, data in self.observables.items():
                         print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
 
@@ -237,7 +239,7 @@ class Simulation:
                     self.universe.export_geometry(outfile + f"_main_{i}", k0=self.k0)
 
                 # Print the sizes of the observables every 100 sweeps
-                if i % 100 == 0:
+                if self.measuring_main and i % 100 == 0:
                     for obs, data in self.observables.items():
                         print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
 
@@ -261,9 +263,8 @@ class Simulation:
             for name, obs in self.observables.items():
                 obs.save_data(outfile + f"_{name}")
 
-        # Print the sizes of the observables final
-        for obs, data in self.observables.items():
-            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")   
+                # Print the sizes of the observables final
+                print(f"{name} data size: {total_size(obs.get_data()) / 1024 / 1024} MB")   
 
     def get_observable_data(self, name: str) -> Any:
         """
@@ -309,32 +310,61 @@ class Simulation:
             1 for add, 2 for delete, 3 for flip, 4 for shift, 5 for inverse shift.
             Negative numbers indicate failed moves.
         """  
-        # Generate a random number to select a move pair
-        move = self.rng.randint(0, self.freq_total)
+        if self.weighted_moves:
+            # Choose a move with a weight proportional to the acceptance ratio
+            moves = {'add': min(self.get_acceptance_probability(1), 1),
+                'delete': min(self.get_acceptance_probability(2), 1),
+                'flip': min(self.get_acceptance_probability(3), 1),
+                'shift_u': min(self.get_acceptance_probability(4), 1) / 2,
+                'shift_d': min(self.get_acceptance_probability(4), 1) / 2,
+                'ishift_u': min(self.get_acceptance_probability(5), 1) / 2,
+                'ishift_d': min(self.get_acceptance_probability(5), 1) / 2
+            }
+            
+            move = self.rng.choices(list(moves.keys()), weights=list(moves.values()))[0]
 
-        if move < self.cum_freqs[0]:
-            # Add or delete move
-            if self.rng.randint(0, 1) == 0:
+            if move == 'add':
                 return 1 if self.move_add() else -1
-            else:
+            elif move == 'delete':
                 return 2 if self.move_delete() else -2
-        elif self.cum_freqs[0] <= move and move < self.cum_freqs[1]:
-            # Flip move
-            return 3 if self.move_flip() else -3
-        elif self.cum_freqs[1] <= move:
-            # Shift or inverse shift move
-            if self.rng.randint(0, 1) == 0:
-                # Shift (3,1) or (1,3) move
+            elif move == 'flip':
+                return 3 if self.move_flip() else -3
+            elif move == 'shift_u':
+                return 4 if self.move_shift_u() else -4
+            elif move == 'shift_d':
+                return 4 if self.move_shift_d() else -4
+            elif move == 'ishift_u':
+                return 5 if self.move_ishift_u() else -5
+            elif move == 'ishift_d':
+                return 5 if self.move_ishift_d() else -5
+        else:
+                
+            # Generate a random number to select a move pair
+            move = self.rng.randint(0, self.freq_total)
+
+            if move < self.cum_freqs[0]:
+                # Add or delete move
                 if self.rng.randint(0, 1) == 0:
-                    return 4 if self.move_shift_u() else -4
+                    return 1 if self.move_add() else -1
                 else:
-                    return 4 if self.move_shift_d() else -4
-            else:
-                # Inverse shift (3,1) or (1,3) move
+                    return 2 if self.move_delete() else -2
+            elif self.cum_freqs[0] <= move and move < self.cum_freqs[1]:
+                # Flip move
+                return 3 if self.move_flip() else -3
+            elif self.cum_freqs[1] <= move:
+                # Shift or inverse shift move
                 if self.rng.randint(0, 1) == 0:
-                    return 5 if self.move_ishift_u() else -5
+                    # Shift (3,1) or (1,3) move
+                    if self.rng.randint(0, 1) == 0:
+                        return 4 if self.move_shift_u() else -4
+                    else:
+                        return 4 if self.move_shift_d() else -4
                 else:
-                    return 5 if self.move_ishift_d() else -5
+                    # Inverse shift (3,1) or (1,3) move
+                    if self.rng.randint(0, 1) == 0:
+                        return 5 if self.move_ishift_u() else -5
+                    else:
+                        return 5 if self.move_ishift_d() else -5
  
         return 0
 
@@ -705,36 +735,38 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    universe = Universe(geometry_infilename='../classes/initial_universes/initial_t3.txt', strictness=3)
     observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections']
-
+    seed = 9
     start = time.time()
+
     simulation = Simulation(
         universe=universe,
-        seed=0,
-        k0=0,
-        k3=0.8,
+        seed=seed,
+        k0=1.0,
+        k3=1.08,
         tune_flag=True,
-        thermal_sweeps=5,
+        thermal_sweeps=10,
         sweeps=0,
-        k_steps=100,
-        target_volume=3000, # Without tune does not do anything
-        observables=observables,
-        include_mcmc_data=False,
+        k_steps=10000,
+        target_volume=100, # Without tune does not do anything
+        observables=[],
+        include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
-        measuring_thermal=False,
+        measuring_thermal=True,
         measuring_main=False,
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
-        validity_check=False
+        validity_check=False,
+        weighted_moves=True
     )
 
     simulation.start(
-        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
+        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={seed}'
     )
 
     print(f"Time taken: {time.time() - start}")
 
-    simulation.universe.check_validity()
+    # simulation.universe.check_validity()
 

@@ -119,7 +119,7 @@ class Simulation:
             'tetrahedron_pool': self.universe.tetrahedron_pool.elements,
             'tetras_31': self.universe.tetras_31.elements
         }
-        self.pool = WorkerPool(n_jobs=self.n_proposals, shared_objects=self.shared_objects, start_method='fork')
+        self.pool = WorkerPool(n_jobs=self.n_proposals, shared_objects=self.shared_objects, start_method='threading')
 
     def start(self, outfile: str = 'output'):
         """
@@ -180,7 +180,7 @@ class Simulation:
                     self.universe.export_geometry(outfile + f"_thermal_{i}", k0=self.k0)
 
                 # Print the sizes of the observables every 100 sweeps
-                if i % 100 == 0:
+                if self.measuring_thermal and i % 100 == 0:
                     for obs, data in self.observables.items():
                         print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
 
@@ -255,7 +255,7 @@ class Simulation:
                     self.universe.export_geometry(outfile + f"_main_{i}", k0=self.k0)
 
                 # Print the sizes of the observables every 100 sweeps
-                if i % 100 == 0:
+                if self.measuring_main and i % 100 == 0:
                     for obs, data in self.observables.items():
                         print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB")
 
@@ -279,9 +279,8 @@ class Simulation:
             for name, obs in self.observables.items():
                 obs.save_data(outfile + f"_{name}")
 
-        # Print the sizes of the observables final
-        for obs, data in self.observables.items():
-            print(f"{obs} data size: {total_size(data.get_data()) / 1024 / 1024} MB") 
+                # Print the sizes of the observables final
+                print(f"{name} data size: {total_size(obs.get_data()) / 1024 / 1024} MB") 
 
         # Close the pool
         self.pool.stop_and_join()
@@ -440,11 +439,11 @@ class Simulation:
                 self.shared_objects['vertex_pool'] = self.universe.vertex_pool.elements
                 self.shared_objects['tetrahedron_pool'] = self.universe.tetrahedron_pool.elements
                 self.shared_objects['tetras_31'] = self.universe.tetras_31.elements
-                self.pool = WorkerPool(n_jobs=self.n_proposals, shared_objects=self.shared_objects, start_method='fork')
+                self.pool = WorkerPool(n_jobs=self.n_proposals, shared_objects=self.shared_objects, start_method='threading')
             else:
                 fails[move_map[move]] += 1
 
-        print(f"Successes: {successes}, \nFails: {fails}")
+        # print(f"Successes: {successes}, \nFails: {fails}")
         return successes, fails
 
     def mcmc_check(self, acceptance_probability: float) -> bool:
@@ -729,41 +728,37 @@ class Simulation:
     
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='../classes/initial_universes/sample-g0-T3.cdt', strictness=3)
+    universe = Universe(geometry_infilename='../classes/initial_universes/initial_t3.txt', strictness=3)
     observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections']
-
+    seed = 0
     start = time.time()
 
     simulation = Simulation(
         universe=universe,
-        seed=0,
-        k0=0,
-        k3=0.8,
+        seed=seed,
+        k0=1.0,
+        k3=1.08,
         tune_flag=True,
-        thermal_sweeps=5,
+        thermal_sweeps=1,
         sweeps=0,
-        k_steps=100,
-        volfix_switch=0,
+        k_steps=300000,
         target_volume=3000, # Without tune does not do anything
-        observables=observables,
+        observables=[],
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
-        measuring_thermal=False,
+        measuring_thermal=True,
         measuring_main=False,
         save_main=False,
         save_thermal=False,
         saving_interval=100, # When to save geometry files
-        validity_check=False,
-        n_proposals=5
+        validity_check=False
     )
 
     simulation.start(
-        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={0}'
+        outfile=f'outfile_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={seed}'
     )
 
-    end = time.time()
+    print(f"Time taken: {time.time() - start}")
 
-    print(f"\nTime elapsed: {end - start}\n")
-
-    simulation.universe.check_validity()
+    # simulation.universe.check_validity()
     
