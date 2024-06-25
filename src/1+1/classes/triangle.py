@@ -3,7 +3,10 @@
 # Author: Seda den Boer
 # Date: 03-01-2024
 # 
-# Description:
+# Description: Represents a triangle in the triangulation.
+# Contains methods to get and set the neighbouring triangles and vertices of the triangle,
+# as well as methods to determine the type of the triangle and to clear all
+# references to other objects.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, Tuple
@@ -16,29 +19,30 @@ class Triangle:
     Represents a triangle in the triangulation.
 
     Attributes:
-        ID: Unique identifier for the triangle.
-        type: Type of the triangle (upwards or downwards).
-        tl: Triangle to the left.
-        tr: Triangle to the right.
-        tc: Triangle to the center (apex).
-        vl: Vertex to the left.
-        vr: Vertex to the right.
-        vc: Vertex to the center.
+        ID (int): Unique identifier for the triangle.
+        type (str): Type of the triangle (upwards or downwards).
+        tl (Triangle): Triangle to the left.
+        tr (Triangle): Triangle to the right.
+        tc (Triangle): Triangle to the center (apex).
+        vl (Vertex): Vertex to the left.
+        vr (Vertex): Vertex to the right.
+        vc (Vertex): Vertex to the center.
+        time (int): Time of the triangle (time of the base).
     """
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.ID: int
         self.type: str
 
         # The three triangles sharing and edge with triangle t
-        self.tl_: Triangle = None # left
-        self.tr_: Triangle = None # right
-        self.tc_: Triangle = None # vertical
+        self.tl: Triangle = None 
+        self.tr: Triangle = None
+        self.tc: Triangle = None 
 
         # The three vertices comprising the triangle t
-        self.vl_: Vertex = None # left
-        self.vr_: Vertex = None # right
-        self.vc_: Vertex = None # apex
+        self.vl: Vertex = None
+        self.vr: Vertex = None
+        self.vc: Vertex = None
 
         # Time can only be determined after initialisation
         self.time: int = None
@@ -53,10 +57,10 @@ class Triangle:
         Returns:
             Triangle: Triangle to the left.
         """
-        if not self.tl_:
+        if not self.tl:
             raise ValueError("No triangle left.")
         
-        return self.tl_
+        return self.tl
 
     def get_triangle_right(self) -> Triangle:
         """
@@ -68,10 +72,10 @@ class Triangle:
         Returns:
             Triangle: Triangle to the right.
         """
-        if not self.tr_:
+        if not self.tr:
             raise ValueError("No triangle right.")
         
-        return self.tr_
+        return self.tr
 
     def get_triangle_center(self) -> Triangle:
         """
@@ -83,10 +87,10 @@ class Triangle:
         Returns:
             Triangle: Triangle to the center.
         """        
-        if not self.tc_:
+        if not self.tc:
             raise ValueError("No triangle center.")
         
-        return self.tc_
+        return self.tc
     
     def get_triangles(self) -> Tuple[Triangle, Triangle, Triangle]:
         """
@@ -98,16 +102,16 @@ class Triangle:
         Returns:
             Tuple[Triangle, Triangle, Triangle]: Triangles to the left, right and center.
         """
-        if not self.tl_:
+        if not self.tl:
             raise ValueError("No triangle left.")
-        if not self.tr_:
+        if not self.tr:
             raise ValueError("No triangle right.")
-        if not self.tc_:
+        if not self.tc:
             raise ValueError("No triangle center.")
         
-        return self.tl_, self.tr_, self.tc_
+        return self.tl, self.tr, self.tc
 
-    def set_triangle_left(self, t: Triangle) -> None:
+    def set_triangle_left(self, t: Triangle):
         """
         Set the triangle to the left of this triangle. Also ensures vice versa
         connections.
@@ -115,12 +119,13 @@ class Triangle:
         Args:
             t (Triangle): Triangle to the left.
         """
-        self.tl_ = t 
+        self.tl = t 
 
+        # Ensure vice versa connection
         if t:
-            t.tr_ = self
+            t.tr = self
 
-    def set_triangle_right(self, t: Triangle) -> None:
+    def set_triangle_right(self, t: Triangle):
         """
         Set the triangle to the right of this triangle. Also ensures vice versa
         connections.
@@ -128,12 +133,13 @@ class Triangle:
         Args:
             t (Triangle): Triangle to the right.
         """
-        self.tr_ = t
+        self.tr = t
 
+        # Ensure vice versa connection
         if t:
             t.tl_ = self
 
-    def set_triangle_center(self, t: Triangle) -> None:
+    def set_triangle_center(self, t: Triangle):
         """
         Set the triangle to the center of this triangle. Also ensures vice versa
         connections.
@@ -141,12 +147,13 @@ class Triangle:
         Args:
             t (Triangle): Triangle to the center.
         """
-        self.tc_ = t
+        self.tc = t
 
+        # Ensure vice versa connection
         if t:
-            t.tc_ = self
+            t.tc = self
 
-    def set_triangles(self, tl: Triangle, tr : Triangle, tc: Triangle) -> None:
+    def set_triangles(self, tl: Triangle, tr : Triangle, tc: Triangle):
         """
         Set the triangles to the left, right and center of this triangle. Also
         ensures vice versa connections.
@@ -156,17 +163,17 @@ class Triangle:
             tr (Triangle): Triangle to the right.
             tc (Triangle): Triangle to the center.
         """
-        self.tl_ = tl
-        self.tr_ = tr
-        self.tc_ = tc
+        self.tl = tl
+        self.tr = tr
+        self.tc = tc
 
         # Ensure vice versa connections
         if tl:
-            tl.tr_ = self
+            tl.tr = self
         if tr:
             tr.tl_ = self
         if tc:
-            tc.tc_ = self
+            tc.tc = self
 
     def get_vertex_left(self) -> Vertex:
         """
@@ -178,10 +185,10 @@ class Triangle:
         Returns:
             Vertex: Left vertex.
         """
-        if not self.vl_:
+        if not self.vl:
             raise ValueError("No vertex left.")
         
-        return self.vl_
+        return self.vl
 
     def get_vertex_right(self) -> Vertex:
         """
@@ -193,10 +200,10 @@ class Triangle:
         Returns:
             Vertex: Right vertex.
         """
-        if not self.vr_:
+        if not self.vr:
             raise ValueError("No vertex right.")
         
-        return self.vr_
+        return self.vr
 
     def get_vertex_center(self) -> Vertex:
         """
@@ -208,10 +215,10 @@ class Triangle:
         Returns:
             Vertex: Center vertex.
         """
-        if not self.vc_:
+        if not self.vc:
             raise ValueError("No vertex center.")
         
-        return self.vc_
+        return self.vc
 
     def get_vertices(self) -> Tuple[Vertex, Vertex, Vertex]:
         """
@@ -223,9 +230,9 @@ class Triangle:
         Returns:
             Tuple[Vertex, Vertex, Vertex]: Left, right and center vertex.
         """  
-        return self.vl_, self.vr_, self.vc_
+        return self.vl, self.vr, self.vc
 
-    def set_vertex_right(self, v: Vertex) -> None:
+    def set_vertex_right(self, v: Vertex):
         """
         Set the right vertex of this triangle. Also updates the time of the triangle,
         and sets the triangle to the left of the right vertex.
@@ -233,17 +240,18 @@ class Triangle:
         Args:
             v (Vertex): Right vertex.
         """
-        self.vr_ = v
+        self.vr = v
         self.time = v.time
         self.update_type()
 
         # Update vertex connections in space
-        v.set_neighbour_left(self.vl_)
+        v.set_neighbour_left(self.vl)
 
+        # If the triangle is upwards, update vertex-triangle connections
         if self.is_upwards():
             v.set_triangle_left(self)
 
-    def set_vertices(self, vl: Vertex, vr: Vertex, vc: Vertex) -> None:
+    def set_vertices(self, vl: Vertex, vr: Vertex, vc: Vertex):
         """
         Set the vertices of this triangle. Also updates the time of the triangle,
         and sets the triangle to the right of the left vertex and the triangle to
@@ -254,9 +262,9 @@ class Triangle:
             vr (Vertex): Right vertex.
             vc (Vertex): Center vertex.
         """
-        self.vl_ = vl
-        self.vr_ = vr
-        self.vc_ = vc
+        self.vl = vl
+        self.vr = vr
+        self.vc = vc
         self.time = vl.time
         self.update_type()
 
@@ -289,31 +297,31 @@ class Triangle:
         """
         return self.type == "DOWN"
 
-    def update_type(self) -> None:
+    def update_type(self):
         """
         Update the type of the triangle based on the times of the vertices.
         """
-        if self.vl_.time < self.vc_.time:
+        if self.vl.time < self.vc.time:
             self.type = "UP"
         else:
             self.type = "DOWN"
 
         # Correct for boundary conditions
-        if self.vc_.time == 0 and self.vl_.time > 1:
+        if self.vc.time == 0 and self.vl.time > 1:
             self.type = "UP"
         
-        if self.vl_.time == 0 and self.vc_.time > 1:
+        if self.vl.time == 0 and self.vc.time > 1:
             self.type = "DOWN"
 
-    def clear_references(self) -> None:
+    def clear_references(self):
         """
         Clear all references to other objects.
         """
-        self.tl_ = None
-        self.tr_ = None
-        self.tc_ = None
-        self.vl_ = None
-        self.vr_ = None
-        self.vc_ = None
+        self.tl = None
+        self.tr = None
+        self.tc = None
+        self.vl = None
+        self.vr = None
+        self.vc = None
         self.time = None
         self.type = None

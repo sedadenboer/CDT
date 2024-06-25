@@ -3,7 +3,10 @@
 # Author: Seda den Boer
 # Date: 02-01-2024
 # 
-# Description:
+# Description: The Universe class represents the current state of the triangulation
+# and stores properties of the geometry in a convenient matter. It also
+# provides member functions that carry out changes on the geometry.
+
 
 from __future__ import annotations
 from typing import cast
@@ -13,7 +16,8 @@ from pool import Pool
 from bag import Bag
 import pickle
 import sys
-sys.setrecursionlimit(10**6)
+sys.setrecursionlimit(10**8)
+
 
 class Universe:
     """
@@ -24,8 +28,6 @@ class Universe:
     Attributes:
         total_time (int): Total number of time slices.
         initial_slice_size (int): Initial size of the time slices.
-        VERTEX_CAPACITY (int): Maximum number of vertices in the triangulation.
-        TRIANGLE_CAPACITY (int): Maximum number of triangles in the triangulation.
         vertex_pool (Pool): Pool of vertices.
         triangle_pool (Pool): Pool of triangles.
         triangle_add_bag (Bag): Bag of triangles that can be added.
@@ -37,29 +39,29 @@ class Universe:
         triangle_up_count (int): Number of triangles with an upwards orientation.
         triangle_down_count (int): Number of triangles with a downwards orientation.
     """
+    class Constants:
+        VERTEX_CAPACITY = 1000000
+        TRIANGLE_CAPACITY = 2 * VERTEX_CAPACITY
 
-    def __init__(self, total_time: int, initial_slice_size: int, VERTEX_CAPACITY: int = 1000000):
+    def __init__(self, total_time: int, initial_slice_size: int):
         if total_time < 3:
             raise ValueError("Total time must be greater than 3.")
         if initial_slice_size < 3:
             raise ValueError("Initial slice size must be greater than 3.")
-        if VERTEX_CAPACITY < 9:
+        if self.Constants.VERTEX_CAPACITY < 9:
             raise ValueError("Vertex capacity must be greater than 9.")
         
         self.total_time = total_time
         self.initial_slice_size = initial_slice_size
 
-        VERTEX_CAPACITY = VERTEX_CAPACITY
-        TRIANGLE_CAPACITY = 2 * VERTEX_CAPACITY
-
         # Create pools for vertices and triangles
-        self.vertex_pool = Pool(capacity=VERTEX_CAPACITY)
-        self.triangle_pool = Pool(capacity=TRIANGLE_CAPACITY)
+        self.vertex_pool = Pool(capacity=self.Constants.VERTEX_CAPACITY)
+        self.triangle_pool = Pool(capacity=self.Constants.TRIANGLE_CAPACITY)
 
         # Create bags
-        self.triangle_add_bag = Bag(pool_capacity=TRIANGLE_CAPACITY)
-        self.four_vertices_bag = Bag(pool_capacity=VERTEX_CAPACITY)
-        self.triangle_flip_bag = Bag(pool_capacity=TRIANGLE_CAPACITY)
+        self.triangle_add_bag = Bag(pool_capacity=self.Constants.TRIANGLE_CAPACITY)
+        self.four_vertices_bag = Bag(pool_capacity=self.Constants.VERTEX_CAPACITY)
+        self.triangle_flip_bag = Bag(pool_capacity=self.Constants.TRIANGLE_CAPACITY)
 
         # Total size of the triangulation   
         self.n_vertices = total_time * initial_slice_size
@@ -151,7 +153,6 @@ class Universe:
                     tr=initial_triangles[row + (column + 2) % (2 * width)],
                     tc=initial_triangles[(row + column + 2 * width) % (2 * total_time * width)]
                 )
-
         
     def insert_vertex(self, triangle_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
@@ -225,8 +226,6 @@ class Universe:
         self.triangle_up_count += 1
         self.triangle_down_count += 1
 
-        # print(f"Inserted vertex {new_vertex.ID} at time {new_vertex.time} in triangle {triangle.ID}")
-    
     def remove_vertex(self, vertex_id: int) -> tuple[Vertex, Triangle, Triangle]:
         """
         Remove a vertex from the triangulation.
@@ -307,8 +306,6 @@ class Universe:
         self.triangle_up_count -= 1
         self.triangle_down_count -= 1
 
-        # print(f"Removed vertex {vertex.ID} at time {vertex.time} from triangle {tl.ID} and {tr.ID}")
-
     def flip_edge(self, triangle_id : int) -> tuple[Triangle, Triangle]:
         """
         Flip an edge in the triangulation.
@@ -379,8 +376,6 @@ class Universe:
         if not self.triangle_flip_bag.contains(tr.ID) and tr.type != tr.get_triangle_right().type:
             self.triangle_flip_bag.add(tr.ID)
 
-        # print(f"Flipped edge in triangle {triangle.ID} and {tr.ID}")
-    
     def is_four_vertex(self, vertex: Vertex) -> bool:
         """
         Checks if a vertex is of degree 4.
@@ -413,10 +408,9 @@ class Universe:
         # Start with any vertex
         start_vertex = vertices[0]
         current_vertex = start_vertex
-
-        # Traverse the neighbors until reaching the starting vertex
         sorted_vertices = [start_vertex]
 
+        # Traverse the neighbors until reaching the starting vertex
         while current_vertex.get_neighbour_right() != start_vertex:
             next_vertex = current_vertex.get_neighbour_right()
             sorted_vertices.append(next_vertex)
@@ -459,7 +453,12 @@ class Universe:
                 space_neighbours = [neighbour.ID for neighbour in col.get_space_neighbours()]
                 future_neighbours = [neighbour.ID for neighbour in col.get_future_neighbours()]
                 past_neighbours = [neighbour.ID for neighbour in col.get_past_neighbours()]
-                print(f"VERTEX {col.ID}: Space neighbours: {space_neighbours}, Future neighbours: {future_neighbours}, Past neighbours: {past_neighbours}")
+                print(
+                    f"VERTEX {col.ID}: "
+                    f"Space neighbours: {space_neighbours}, "
+                    f"Future neighbours: {future_neighbours}, "
+                    f"Past neighbours: {past_neighbours}"
+                )
             print()
 
     def check_validity(self):
@@ -479,39 +478,63 @@ class Universe:
                 # Assert that each vertex has a left and right neighbour
                 space_neighbours = col.get_space_neighbours()
                 assert len(space_neighbours) == 2, f"Vertex {col.ID} has {len(space_neighbours)} space neighbours"
-                
+
                 # Check validity of time and connectivity of future neighbours
                 for future_neighbour in col.get_future_neighbours():
-                    assert col in future_neighbour.get_past_neighbours()
+                    assert col in future_neighbour.get_past_neighbours(), (
+                        f"Future neighbour {future_neighbour.ID} does not have {col.ID} as past neighbour"
+                    )
                     if col.time != self.total_time - 1:
-                        assert future_neighbour.time == col.time + 1
+                        assert future_neighbour.time == col.time + 1, (
+                            f"Future neighbour {future_neighbour.ID} time {future_neighbour.time} is not {col.time + 1}"
+                        )
                     else:
-                        assert future_neighbour.time == 0
+                        assert future_neighbour.time == 0, (
+                            f"Future neighbour {future_neighbour.ID} time {future_neighbour.time} is not 0"
+                        )
 
                 # Check validity of time and connectivity of past neighbours
                 for past_neighbour in col.get_past_neighbours():
-                    assert col in past_neighbour.get_future_neighbours()
+                    assert col in past_neighbour.get_future_neighbours(), (
+                        f"Past neighbour {past_neighbour.ID} does not have {col.ID} as future neighbour"
+                    )
                     if col.time != 0:
-                        assert past_neighbour.time == col.time - 1
+                        assert past_neighbour.time == col.time - 1, (
+                            f"Past neighbour {past_neighbour.ID} time {past_neighbour.time} is not {col.time - 1}"
+                        )
                     else:
-                        assert past_neighbour.time == self.total_time - 1
+                        assert past_neighbour.time == self.total_time - 1, (
+                            f"Past neighbour {past_neighbour.ID} time {past_neighbour.time} is not {self.total_time - 1}"
+                        )
 
         # Check for validity of triangles
         for triangle in all_triangles:
-            assert len(triangle.get_triangles()) == 3, f"Triangle {triangle.ID} has {len(triangle.get_triangles())} triangles"
-            assert triangle.get_vertex_left().time == triangle.get_vertex_right().time, f"Triangle {triangle.ID} has vertices from different time slices"
+            assert len(triangle.get_triangles()) == 3, (
+                f"Triangle {triangle.ID} has {len(triangle.get_triangles())} triangles"
+            )
+            assert triangle.get_vertex_left().time == triangle.get_vertex_right().time, (
+                f"Triangle {triangle.ID} has vertices from different time slices"
+            )
 
             # Check for validity of triangle orientation and time
             if triangle.is_upwards():
                 if triangle.time != self.total_time - 1:
-                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time + 1, f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time + 1, (
+                        f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+                    )
                 else:
-                    assert triangle.get_vertex_center().time == 0, f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+                    assert triangle.get_vertex_center().time == 0, (
+                        f"Triangle {triangle.ID} is upwards but has left vertex with higher time than center vertex."
+                    )
             else:
                 if triangle.time != 0:
-                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time - 1, f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+                    assert triangle.get_vertex_center().time == triangle.get_vertex_left().time - 1, (
+                        f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+                    )
                 else:
-                    assert triangle.get_vertex_center().time == self.total_time - 1, f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+                    assert triangle.get_vertex_center().time == self.total_time - 1, (
+                        f"Triangle {triangle.ID} is downwards but has left vertex with lower time than center vertex."
+                    )
 
     def save_to_file(self, filename):
         """

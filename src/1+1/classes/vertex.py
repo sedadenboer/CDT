@@ -3,7 +3,10 @@
 # Author: Seda den Boer
 # Date: 03-01-2024
 # 
-# Description:
+# Description: Represents a vertex in the triangulation.
+# Contains methods to get and set the triangles and vertices of the vertex,
+# as well as methods to add and remove neighbours and to clear all references
+# to other objects.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -11,46 +14,58 @@ if TYPE_CHECKING:
     from triangle import Triangle
 
 
-class Vertex(object):
+class Vertex:
     """
     Represents a vertex in the triangulation.
 
     Attributes:
-        ID: Unique identifier for the vertex.
-        time: Time of the vertex.
-        tl: Triangle to the left.
-        tr: Triangle to the right.
+        ID (int): Unique identifier for the vertex.
+        time (int): Time of the vertex.
+        tr (Triangle): Triangle to the right.
+        tl (Triangle): Triangle to the left.
+        past_neighbours (List[Vertex]): List of past neighbours.
+        future_neighbours (List[Vertex]): List of future neighbours.
     """
-    def __init__(self, time: int) -> None:
+    def __init__(self, time: int):
         self.time = time
         self.ID: int
+
         # The two (2,1)-triangles sharing an edge with vertex v
-        self.tr_: Triangle = None
-        self.tl_: Triangle = None
-        self.vr_: Vertex = None
-        self.vl_: Vertex = None
+        self.tr: Triangle = None
+        self.tl: Triangle = None
+
+        # The two neighbouring vertices of vertex v
+        self.vr: Vertex = None
+        self.vl: Vertex = None
+        
         self.past_neighbours = []
         self.future_neighbours = []
 
-    def set_triangle_left(self, t: Triangle) -> None:
+    def set_triangle_left(self, t: Triangle):
         """
         Set the (2,1)-triangle to the left of this vertex.
+
+        Raises:
+            AssertionError: If the triangle is not upwards.
 
         Args:
             t (Triangle): (2,1)-triangle to set to the left of this vertex.
         """
         assert t.is_upwards() is not None, "Triangle is not upwards."
-        self.tl_ = t
+        self.tl = t
     
-    def set_triangle_right(self, t: Triangle) -> None:
+    def set_triangle_right(self, t: Triangle):
         """
         Set the (2,1)-triangle to the right of this vertex.
+
+        Raises:
+            AssertionError: If the triangle is not upwards.
 
         Args:
             t (Triangle): (2,1)-triangle to set to the right of this vertex.
         """
         assert t.is_upwards() is not None, "Triangle is not upwards."
-        self.tr_ = t
+        self.tr = t
     
     def get_triangle_left(self) -> Triangle:
         """
@@ -62,10 +77,10 @@ class Vertex(object):
         Returns:
             Triangle: (2,1)-triangle to the left.
         """
-        if not self.tl_:
+        if not self.tl:
             raise ValueError("No triangle left.")
         
-        return self.tl_
+        return self.tl
     
     def get_triangle_right(self) -> Triangle:
         """
@@ -77,30 +92,30 @@ class Vertex(object):
         Returns:
             Triangle: (2,1)-triangle to the right.
         """
-        if not self.tr_:
+        if not self.tr:
             raise ValueError("No triangle right.")
         
-        return self.tr_
+        return self.tr
 
-    def set_neighbour_left(self, v: Vertex) -> None:
+    def set_neighbour_left(self, v: Vertex):
         """
         Set the vertex to the left of this vertex.
 
         Args:
             v (Vertex): Vertex to set to the left of this vertex.
         """
-        self.vl_ = v
-        v.vr_ = self
+        self.vl = v
+        v.vr = self
     
-    def set_neighbour_right(self, v: Vertex) -> None:
+    def set_neighbour_right(self, v: Vertex):
         """
         Set the vertex to the right of this vertex.
 
         Args:
             v (Vertex): Vertex to set to the right of this vertex.
         """
-        self.vr_ = v
-        v.vl_ = self
+        self.vr = v
+        v.vl = self
     
     def get_neighbour_left(self) -> Vertex:
         """
@@ -112,10 +127,10 @@ class Vertex(object):
         Returns:
             Vertex: Vertex to the left.
         """
-        if not self.vl_:
+        if not self.vl:
             raise ValueError("No vertex left.")
         
-        return self.vl_
+        return self.vl
     
     def get_neighbour_right(self) -> Vertex:
         """
@@ -127,10 +142,10 @@ class Vertex(object):
         Returns:
             Vertex: Vertex to the right.
         """
-        if not self.vr_:
+        if not self.vr:
             raise ValueError("No vertex right.")
         
-        return self.vr_
+        return self.vr
 
     def get_space_neighbours(self) -> list[Vertex]:
         """
@@ -141,7 +156,7 @@ class Vertex(object):
         """
         return self.get_neighbour_left(), self.get_neighbour_right()
     
-    def add_future_neighbour(self, v: Vertex) -> None:
+    def add_future_neighbour(self, v: Vertex):
         """
         Add a future neighbour to the vertex and vice versa.
 
@@ -152,13 +167,17 @@ class Vertex(object):
             self.future_neighbours.append(v)
             v.past_neighbours.append(self)
 
-    def add_past_neighbour(self, v: Vertex) -> None:
+    def add_past_neighbour(self, v: Vertex):
         """
         Add a past neighbour to the vertex and vice versa.
+
+        Raises:
+            AssertionError: If the past neighbour has the wrong time.
 
         Args:
             v (Vertex): Vertex to add as past neighbour.
         """
+        # Check if past neighbour has the right time, considering it is not at the boundary
         if self.time != 0:
             assert v.time == self.time - 1, "Past neighbour has wrong time."
         
@@ -166,7 +185,7 @@ class Vertex(object):
             self.past_neighbours.append(v)
             v.future_neighbours.append(self)
     
-    def delete_future_neighbour(self, v: Vertex) -> None:
+    def delete_future_neighbour(self, v: Vertex):
         """
         Delete a future neighbour from the vertex and vice versa.
 
@@ -177,7 +196,7 @@ class Vertex(object):
             self.future_neighbours.remove(v)
             v.past_neighbours.remove(self)
     
-    def delete_past_neighbour(self, v: Vertex) -> None:
+    def delete_past_neighbour(self, v: Vertex):
         """
         Delete a past neighbour from the vertex and vice versa.
 
@@ -206,13 +225,13 @@ class Vertex(object):
         """
         return self.past_neighbours
     
-    def clear_references(self) -> None:
+    def clear_references(self):
         """
         Clears all the references of the vertex.
         """
-        self.tl_ = None
-        self.tr_ = None
-        self.vr_ = None
-        self.vl_ = None
+        self.tl = None
+        self.tr = None
+        self.vr = None
+        self.vl = None
         self.past_neighbours = []
         self.future_neighbours = []

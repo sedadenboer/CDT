@@ -25,3 +25,11 @@ simulation_mt3.py
 ray_env
 graphs
 evaluate.ipynb
+src/2+1/experiments
+src/1+1/experiments
+*ray.py
+halfedge.py
+src/2+1/classes/triangle.py
+*.log
+tests
+visualisation

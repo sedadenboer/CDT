@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from triangle import Triangle
 
 
-class Pool(object):
+class Pool:
     """
     The Pool class represents a pool of indices that can be used to create
     and destroy objects. It is used to keep track of the objects that are
@@ -20,8 +20,8 @@ class Pool(object):
 
     Attributes:
         capacity (int): Maximum number of objects in pool.
-        elements (list): List of objects.
-        used_indices (set): Set of indices of used objects.
+        elements (List[Union[Triangle, Vertex, None]]): List of objects.
+        used_indices (Set[int]): Set of indices of used objects.
         first (int): Index of first free object.
     """
     def __init__(self, capacity: int):

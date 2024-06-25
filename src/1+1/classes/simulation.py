@@ -12,10 +12,7 @@ import numpy as np
 import time
 import os
 from universe import Universe
-from typing import TYPE_CHECKING, Tuple
-if TYPE_CHECKING:
-    from triangle import Triangle
-import multiprocessing as mp
+from typing import Tuple
 
 
 class Simulation:
@@ -25,10 +22,20 @@ class Simulation:
     the detailed-balance conditions. If it decides a move should be
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
+
+    Attributes:
+        universe (Universe): Universe object.
+        lambd (float): Lambda value.
+        seed (int): Seed for random number generator.
+        rng (random.Random): Random number generator.
+        steps (int): Number of steps to progress the universe.
+        weighted_moves (bool): Whether to use weighted moves.
+        move_freqs (list): List of move frequencies.
     """
     class Constants:
         N_MOVES = 3
         SLICE_SIZE_LIMIT = 3
+        MAX_DELETE_TRIES = 1000
 
     def __init__(self, universe: Universe, lambd: float, seed: int = 0, steps: int = 1000, weighted_moves: bool = False):
         self.universe = universe
@@ -81,8 +88,8 @@ class Simulation:
         np.save(pathname + f"failed_delete_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.failed_delete))
         np.save(pathname + f"failed_flip_stps={self.steps}_lambd={lambd_str}_seed={self.seed}.npy", np.array(self.failed_flip))
 
-        # # Save the geometries
-        # self.universe.save_to_file(pathname + f"geometry_stps={self.steps}_lambd={lambd_str}_seed={self.seed}")
+        # Save the geometries
+        self.universe.save_to_file(pathname + f"geometry_stps={self.steps}_lambd={lambd_str}_seed={self.seed}")
 
     def get_acceptance_ratio_and_object(self, move_type: int) -> Tuple[float, int]:
         """
@@ -113,24 +120,26 @@ class Simulation:
             return ((n0_four + 1.0) / n0) * np.exp(2 * self.lambd), vertex_id
         elif move_type == 3:
             # Flip
-            ntf = self.universe.triangle_flip_bag.get_number_occupied()
+            n3_flip = self.universe.triangle_flip_bag.get_number_occupied()
 
             # If there are no triangles to flip
-            if ntf == 0:
+            if n3_flip == 0:
                 return 0, 0
             
-            new_ntf = ntf
+            # Save the intial number of triangles
+            new_n3_flip = n3_flip
 
             # Flip move needs a specific triangle to compute the acceptance ratio
             triangle_id = self.universe.triangle_flip_bag.pick()
             triangle = self.universe.triangle_pool.get(triangle_id)
 
+            # Compute the new number of triangles that can be flipped
             if triangle.type == triangle.get_triangle_right().get_triangle_right().type:
-                new_ntf += 1
+                new_n3_flip += 1
             else:
-                new_ntf -= 1
+                new_n3_flip -= 1
 
-            return (ntf / new_ntf), triangle_id
+            return (n3_flip / new_n3_flip), triangle_id
 
         return -1, -1
 
@@ -168,6 +177,7 @@ class Simulation:
         flip_ar, flip_triangle_id = self.get_acceptance_ratio_and_object(3)
         delete_ar, del_vertex_id = self.get_acceptance_ratio_and_object(2)
 
+        # Needed for checking if there are enough vertices to delete
         vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
         slice_size = self.universe.slice_sizes[vertex_to_delete.time]
         tries = 0
@@ -175,9 +185,10 @@ class Simulation:
         # If there are not enough vertices to delete, pick a new vertex
         while slice_size <= self.Constants.SLICE_SIZE_LIMIT:
             # If there are no vertices of degree four, return 0
-            if tries > 1000:
+            if tries > self.Constants.MAX_DELETE_TRIES:
                 return 0
             
+            # Get new acceptance ratio and object, and update tries
             delete_ar, del_vertex_id = self.get_acceptance_ratio_and_object(2)
             vertex_to_delete = self.universe.vertex_pool.get(del_vertex_id)
             slice_size = self.universe.slice_sizes[vertex_to_delete.time]
@@ -188,32 +199,33 @@ class Simulation:
         self.ar_delete.append(delete_ar)
         self.ar_flip.append(flip_ar)
 
-        # Choose move based on acceptance ratios
+        # Choose move with probability proportional to acceptance ratios
         if self.weighted_moves:
             weighed_move_choice = self.rng.choices([1, 2, 3], weights=[add_ar, delete_ar, flip_ar])[0]
+
             if weighed_move_choice == 1:
+                # Perform the MCMC check and if passed, insert the vertex
                 if self.mcmc_check(add_ar):
-                    # Perform the add move
                     self.universe.insert_vertex(add_triangle_id)
                     return 1
                 else:
                     return -1
             elif weighed_move_choice == 2:
+                # Perform the MCMC check and if passed, remove the vertex
                 if self.mcmc_check(delete_ar):
-                    # Perform the delete move
                     self.universe.remove_vertex(del_vertex_id)
                     return 2
                 else:
                     return -2
             elif weighed_move_choice == 3:
+                # Perform the MCMC check and if passed, flip the edge
                 if self.mcmc_check(flip_ar):
-                    # Perform the flip move
                     self.universe.flip_edge(flip_triangle_id)
                     return 3
                 else:
                     return -3
         else:
-            # Two bins for add/delete, and one for flip
+            # Use cumulative frequencies to choose between add/delete and flip
             cum_freqs = [0, 0]
             tot_freq = 0
             prev_cum_freq = 0
@@ -235,22 +247,22 @@ class Simulation:
             if move < cum_freqs[0]:
                 # Choose between add and delete based on bin_choice
                 if bin_choice == 0:
+                    # Perform the MCMC check and if passed, insert the vertex
                     if self.mcmc_check(add_ar):
-                        # Perform the add move
                         self.universe.insert_vertex(add_triangle_id)
                         return 1
                     else: 
                         return -1
                 else:
                     if self.mcmc_check(delete_ar):
-                        # Perform the delete move
+                        # Perform the MCMC check and if passed, remove the vertex
                         self.universe.remove_vertex(del_vertex_id)
                         return 2
                     else:
                         return -2
             elif move >= cum_freqs[0]:
                 if self.mcmc_check(flip_ar):
-                    # Perform the flip move
+                    # Perform the MCMC check and if passed, flip the edge
                     self.universe.flip_edge(flip_triangle_id)
                     return 3
                 else:
@@ -278,15 +290,15 @@ class Simulation:
 
         start = time.time()
 
+        # Progress the universe by a given number of steps
         for _ in range(self.steps):
             # Attempt a move
             move_type = self.attempt_move()
 
-            # print(move_type)
-
             # Save the total size of the universe
             self.volume_changes.append(self.universe.get_total_size())
 
+            # Update the counts
             if move_type == 1:
                 add_count += 1
             elif move_type == 2:
@@ -299,19 +311,14 @@ class Simulation:
                 delete_failed_count += 1
             elif move_type == -3:
                 flip_failed_count += 1
-                
+            
+            # Save the counts
             self.count_add.append(add_count)
             self.count_delete.append(delete_count)
             self.count_flip.append(flip_count)
             self.failed_add.append(add_failed_count)
             self.failed_delete.append(delete_failed_count)
             self.failed_flip.append(flip_failed_count)
-            
-            # Check if the universe is still valid
-            for size in self.universe.slice_sizes.values():
-                if size < self.Constants.SLICE_SIZE_LIMIT:
-                    print("Invalid universe")
-                    return
 
         end = time.time()
 
@@ -333,25 +340,11 @@ class Simulation:
 
 
 if __name__ == "__main__":
-    # seed = 0
-    # step = 0.005
-    # lambda_values = np.arange(0.68, 0.78 + step, step)
-
-    # for i, lambd in enumerate(lambda_values):
-    #     universe = Universe(total_time=50, initial_slice_size=40)
-    #     simulation = Simulation(universe, lambd=lambd, seed=seed, steps=1000000, weighted_moves=False)
-    #     simulation.progress_universe(silence=False, save_data=True)
-
-    # universe = Universe(total_time=50, initial_slice_size=40)
-    # simulation = Simulation(universe, lambd=0.71, seed=0, steps=1000000, weighted_moves=False)
-    # simulation.progress_universe(silence=False, save_data=False)
-
     lambd = 0.8
-    steps = 1000000
-    chains = 10
+    steps = 10
     weighted_moves = False
     
-    for i in range(chains):
-        universe = Universe(total_time=50, initial_slice_size=40)
-        simulation = Simulation(universe, lambd=lambd, seed=i, steps=steps, weighted_moves=weighted_moves)
-        simulation.progress_universe(silence=False, save_data=True)
+    universe = Universe(total_time=50, initial_slice_size=40)
+    simulation = Simulation(universe, lambd=lambd, seed=42, steps=steps, weighted_moves=weighted_moves)
+    simulation.progress_universe(silence=False, save_data=False)
+    simulation.universe.check_validity()
