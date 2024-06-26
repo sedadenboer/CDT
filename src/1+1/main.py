@@ -1,3 +1,10 @@
+# main.py
+# 
+# Author: Seda den Boer
+# Date: 15-05-2024
+#
+# Description: Main file for running the 1+1D CDT Monte Carlo simulation.
+
 import sys
 sys.path.append('..')
 import argparse

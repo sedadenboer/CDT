@@ -4,6 +4,9 @@
 # Date: 17-02-2024
 # 
 # Description: Defines a vertex in the triangulation.
+# Contains methods to get and set set the tetrahedron that contains the vertex, as well as
+# methods to check if a vertex is a neighbour of this vertex and to clear all
+# references to other objects.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, List, Dict
@@ -16,9 +19,11 @@ class Vertex:
     """
     Represents a vertex in the triangulation.
 
+    Args (Attributes):
+        time: Slice number.
+
     Attributes:
         ID: Unique identifier for the vertex.
-        time: Slice number.
         tetra: Tetrahedron that contains this vertex.
         cnum: Number of tetrahedra that share this vertex.
         scnum: Spatial coordination number.
@@ -30,16 +35,20 @@ class Vertex:
         self.cnum = 0
         self.scnum = 0
 
-    def set_tetra(self, t: Tetrahedron) -> None:
+    def set_tetra(self, t: Tetrahedron):
         """
         Sets an (3,1)-tetrahedron that contains this vertex in its base.
 
+        Raises:
+            AssertionError: If the vertex is not part of the tetrahedron
+                            or not in the base of the tetrahedron.
+        
         Args:
             t (Tetrahedron): A (3,1)-tetrahedron that contains this vertex in its base.
         """
         # Make sure that the vertex is in the base of the tetrahedron
-        assert t.has_vertex(self)
-        assert np.array_equal(t.get_vertices(), self) != 3
+        assert t.has_vertex(self), f"Vertex {self.ID} is not part of the tetrahedron {t.ID}."
+        assert np.array_equal(t.get_vertices(), self) != 3, f"Vertex {self.ID} is not in the base of the tetrahedron."
         self.tetra = t
 
     def get_tetra(self) -> Tetrahedron:
@@ -54,6 +63,7 @@ class Vertex:
     def check_vertex_neighbour(self, v: Vertex) -> bool:
         """
         Checks if the given vertex `v` is a neighbor of this vertex.
+        Uses a breadth-first search to do so.
 
         Args:
             v (Vertex): The vertex to check for neighbor relationship.
@@ -97,7 +107,7 @@ class Vertex:
     
         return False
 
-    def clear_references(self) -> None:
+    def clear_references(self):
         """
         Clears all references to other objects.
         """
@@ -112,8 +122,3 @@ class Vertex:
         """
         tetra = self.tetra
         return f"Vertex {self.ID} @ time {self.time} with cnum {self.cnum} and scnum {self.scnum}. Tetrahedron: {tetra}"
-    
-    # def __del__(self):
-    #     self.clear_references()
-    #     del self
-    #     print(f"Deleted vertex {self.ID}")

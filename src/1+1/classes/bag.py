@@ -16,8 +16,10 @@ class Bag:
     be added to and removed from. It is used to be able to pick random
     objects from a set of objects with certain properties.
 
-    Attributes:
+    Args (Attributes):
         pool_capacity (int): Maximum number of objects in bag.
+
+    Attributes:
         elements (List[int]): List of pool indices.
         indices (List[int]): List of indices of pool indices.
         size (int): Number of pool indices in bag.

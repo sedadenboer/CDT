@@ -23,19 +23,30 @@ class Simulation:
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
 
-    Attributes:
+    Args (Attributes):
         universe (Universe): Universe object.
         lambd (float): Lambda value.
         seed (int): Seed for random number generator.
-        rng (random.Random): Random number generator.
         steps (int): Number of steps to progress the universe.
         weighted_moves (bool): Whether to use weighted moves.
-        move_freqs (list): List of move frequencies.
+
+    Attributes:
+        rng (random.Random): Random number generator.
+        move_freqs (List[int]): Frequencies of the different move types.
+        volume_changes (List[int]): List of total sizes of the universe.
+        ar_delete (List[float]): List of acceptance ratios for delete moves.
+        ar_add (List[float]): List of acceptance ratios for add moves.
+        ar_flip (List[float]): List of acceptance ratios for flip moves.
+        count_add (List[int]): List of counts of add moves.
+        count_delete (List[int]): List of counts of delete moves.
+        count_flip (List[int]): List of counts of flip moves.
+        failed_add (List[int]): List of counts of failed add moves.
+        failed_delete (List[int]): List of counts of failed delete moves.
+        failed_flip (List[int]): List of counts of failed flip moves.
     """
-    class Constants:
-        N_MOVES = 3
-        SLICE_SIZE_LIMIT = 3
-        MAX_DELETE_TRIES = 1000
+    N_MOVES = 3
+    SLICE_SIZE_LIMIT = 3
+    MAX_DELETE_TRIES = 1000
 
     def __init__(self, universe: Universe, lambd: float, seed: int = 0, steps: int = 1000, weighted_moves: bool = False):
         self.universe = universe
@@ -183,9 +194,9 @@ class Simulation:
         tries = 0
 
         # If there are not enough vertices to delete, pick a new vertex
-        while slice_size <= self.Constants.SLICE_SIZE_LIMIT:
+        while slice_size <= self.SLICE_SIZE_LIMIT:
             # If there are no vertices of degree four, return 0
-            if tries > self.Constants.MAX_DELETE_TRIES:
+            if tries > self.MAX_DELETE_TRIES:
                 return 0
             
             # Get new acceptance ratio and object, and update tries

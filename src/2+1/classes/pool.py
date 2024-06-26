@@ -11,9 +11,7 @@ import random
 from typing import TYPE_CHECKING, List, Optional, Union
 if TYPE_CHECKING:
     from vertex import Vertex
-    from triangle import Triangle
     from tetra import Tetrahedron
-    from halfedge import HalfEdge
 
 
 class Pool:
@@ -22,12 +20,15 @@ class Pool:
     and destroy objects. It is used to keep track of the objects that are
     currently in use and the objects that are available for use.
 
-    Attributes:
+    Args (Attributes):
         capacity (int): Maximum number of objects in pool.
+
+    Attributes:
         elements (np.ndarray): Array of objects.
         x (np.ndarray): Array of flags indicating if object is in use.
         p (np.ndarray): Array of pointers to next free object.
         first (int): Index of first free object.
+        size (int): Number of objects in pool.
     """
     def __init__(self, capacity: int):
         self.capacity: int = capacity
@@ -38,9 +39,12 @@ class Pool:
         self.first: Optional[int] = 0
         self.size = 0
     
-    def occupy(self, obj: Union[Triangle, Vertex, Tetrahedron, HalfEdge]) -> int:
+    def occupy(self, obj: Union[Vertex, Tetrahedron]) -> int:
         """
         Occupies a space in the pool and returns the index of the object.
+
+        Args:
+            obj (Union[Vertex, Tetrahedron]): Object to occupy space in pool.
 
         Returns:
             int: Index of object.
@@ -99,7 +103,7 @@ class Pool:
         self.first = 0
         self.size = 0
 
-    def get(self, index: int) -> Union[Triangle, Vertex, Tetrahedron, HalfEdge, None]:
+    def get(self, index: int) -> Union[Vertex, Tetrahedron, None]:
         """
         Gets an object from the pool.
 
@@ -107,7 +111,7 @@ class Pool:
             index (int): Index of object to get.
 
         Returns:
-            Union[Triangle, Vertex, None]: Object.
+            Union[Vertex, Tetrahedron, None]: Object.
         """
         return self.elements[index]
     
@@ -124,6 +128,9 @@ class Pool:
         """
         Picks a random object from the pool.
 
+        Raises:
+            Exception: If pool is empty.
+
         Returns:
             int: Index of object.
         """
@@ -132,6 +139,8 @@ class Pool:
         else:
             # Pick random element from pool
             random_element = self.elements[random.randint(0, self.size - 1)]
+
+            # If random element is empty, pick another element
             while not random_element:
                 random_element = self.elements[random.randint(0, self.size - 1)]
 
@@ -164,12 +173,12 @@ class Pool:
         """
         return self.size
     
-    def get_objects(self) -> np.darray[Union[Triangle, Vertex, Tetrahedron, HalfEdge]]:
+    def get_objects(self) -> np.darray[Union[Vertex, Tetrahedron]]:
         """
         Gets the objects in the pool without the empty spaces.
 
         Returns:
-            np.darray[Union[Triangle, Vertex, Tetrahedron, HalfEdge]]: Array of objects.
+            np.darray[Union[Vertex, Tetrahedron]]: Array of objects.
         """
         return self.elements[self.x == 1]
     

@@ -4,7 +4,8 @@
 # Date: 15-05-2024
 #
 # Descriptiopn: Defines the multiple-try version
-# of the original Simulation class.
+# of the original Simulation class. Requires the
+# check_mt.py file to be present in the same directory.
 
 import random
 import numpy as np
@@ -23,13 +24,13 @@ import time
 
 class Simulation:
     """
-    The Simulation class is responsible for all procedures related
+    The multiple-try Simulation class is responsible for all procedures related
     to the actual Monte Carlo simulation. It proposes moves and computes
     the detailed-balance conditions. If it decides a move should be
     accepted, it calls the Universe class to carry out the move at a
     given location. It also triggers the measurement of observables.
 
-    Args:
+    Args (Attributes):
         universe (Universe): The universe object representing the system.
         seed (int): The seed for the random number generator.
         k0 (int): The number of k0 moves to perform.
@@ -38,9 +39,6 @@ class Simulation:
         thermal_sweeps (int): The number of thermal sweeps to perform.
         sweeps (int): The number of sweeps to perform.
         k_steps (int): The number of k steps to perform.
-        v1 (int, optional): The frequency of the v1 move. Defaults to 1.
-        v2 (int, optional): The frequency of the v2 move. Defaults to 1.
-        v3 (int, optional): The frequency of the v3 move. Defaults to 1.
         volfix_switch (int, optional): The volfix switch. Defaults to 0.
         target_volume (int, optional): The target volume. Defaults to 0.
         target2_volume (int, optional): The second target volume. Defaults to 0.
@@ -48,7 +46,8 @@ class Simulation:
         observables (List[str], optional): The list of observables to measure. Defaults to []. 
                                            Options are: 'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22',
                                            'slice_sizes', 'slab_sizes','curvature', 'connections'.
-        include_mcmc_data (bool): If True, includes successes, fails, acceptance ratios and k3 values to observables. Defaults to True.
+        include_mcmc_data (bool): If True, includes successes, fails, acceptance ratios and k3 values to observables.
+                                  Defaults to True.
         measuring_interval (int, optional): The measuring interval. Defaults to 1.
         measuring_thermal (bool, optional): Flag to measure thermal data. Defaults to False.
         measuring_main (bool, optional): Flag to measure main data. Defaults to False.
@@ -57,17 +56,25 @@ class Simulation:
         saving_interval (int, optional): The saving interval. Defaults to 1.
         validity_check (bool, optional): Flag to perform validity check. Defaults to False.
         n_proposals (int): The number of proposals to make in the multiple-try version. Defaults to 5.
+
+    Attributes:
+        rng (random.Random): The random number generator.
+        successes (List[np.ndarray[int]]): The success counts for each move.
+        fails (List[np.ndarray[int]]): The fail counts for each move.
+        acceptance_ratios (List[List[float]]): The acceptance ratios for each move.
+        k3_values (List[float]): The k3 values for each move.
+
+    Raises: 
+        ValueError: If the number of proposals is greater than the number of CPU cores.
     """
-    class Constants:
-        N_VERTICES_TETRA = 4
-        N_VERTICES_TRIANGLE = 3
-        N_MOVES = 5
+    N_VERTICES_TETRA = 4
+    N_VERTICES_TRIANGLE = 3
+    N_MOVES = 5
 
     def __init__(self,
                 universe: Universe, seed: int,
                 k0: int, k3: int, tune_flag: bool = True,
                 thermal_sweeps: int = 10, sweeps: int = 10, k_steps: int = 1000,
-                v1: int = 1, v2: int = 1, v3: int = 1,
                 volfix_switch: int = 0, target_volume: int = 0, target2_volume: int = 0, epsilon: float = 0.00005,
                 observables: List[Observable] = [], include_mcmc_data: bool = True,
                 measuring_interval: int = 1, measuring_thermal: bool = False, measuring_main: bool = False,
@@ -94,24 +101,19 @@ class Simulation:
         self.measuring_interval: int = measuring_interval
         self.measuring_thermal: bool = measuring_thermal
         self.measuring_main: bool = measuring_main
-        self.include_mcmc_data: bool = include_mcmc_data
         self.n_proposals: int = n_proposals
-        assert self.n_proposals <= multiprocessing.cpu_count(), "Number of proposals should be less than or equal to the number of CPU cores."
-        
-        # Initialize data structures for MCMC data and set the frequencies of the moves
-        self.acceptance_ratios: np.darray = np.zeros(self.Constants.N_MOVES)
-        self.move_freqs: Tuple[int, int, int] = (v1, v2, v3)
-        self.observables: Dict[str, Observable] = {obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables}
-        
+        assert self.n_proposals <= multiprocessing.cpu_count(), (
+            "Number of proposals should be less than or equal to the number of CPU cores.")
+        self.observables: Dict[str, Observable] = {
+            obs: Observable(obs, thermal_sweeps, sweeps, k0, measuring_interval) for obs in observables
+        }
+        self.include_mcmc_data: bool = include_mcmc_data
+
         # If MCMC data is included, save the success and fail counts, acceptance ratios and k3 values
         self.successes: List[np.ndarray] = []
         self.fails: List[np.darray] = []
-        self.acceptance_ratios = []
-        self.k3_values = []
-
-        # Calculate cumulative frequencies
-        self.cum_freqs = np.cumsum(self.move_freqs)
-        self.freq_total = sum(self.move_freqs)
+        self.acceptance_ratios: List[List[float]] = []
+        self.k3_values: List[float] = []
 
         # Create a pool for parallel execution
         self.shared_objects = {
@@ -155,7 +157,7 @@ class Simulation:
                 if self.include_mcmc_data:
                     self.successes.append(thermal_successes)
                     self.fails.append(thermal_fails)
-                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.Constants.N_MOVES + 1)])
+                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.N_MOVES + 1)])
                     self.k3_values.append(self.k3)
                 
                 # Tune the k3 parameter
@@ -209,7 +211,7 @@ class Simulation:
                 if self.include_mcmc_data:
                     self.successes.append(main_successes)
                     self.fails.append(main_fails)
-                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.Constants.N_MOVES + 1)])
+                    self.acceptance_ratios.append([self.get_acceptance_probability(i) for i in range(1, self.N_MOVES + 1)])
 
                 # Ensure that the universe is at the target volume (if specified)
                 if self.target_volume > 0 and i % self.measuring_interval == 0:
@@ -420,8 +422,8 @@ class Simulation:
             Tuple[List[int], List[int]]: The gathered counts and failed counts.
         """
         move_map = {'add': 0,'delete': 1,'flip': 2,'shift_u': 3,'shift_d': 3,'ishift_u': 4,'ishift_d': 4}
-        successes = np.zeros(self.Constants.N_MOVES, dtype=int)
-        fails = np.zeros(self.Constants.N_MOVES, dtype=int)
+        successes = np.zeros(self.N_MOVES, dtype=int)
+        fails = np.zeros(self.N_MOVES, dtype=int)
 
         # Perform n moves
         for i in range(n):
@@ -443,7 +445,6 @@ class Simulation:
             else:
                 fails[move_map[move]] += 1
 
-        # print(f"Successes: {successes}, \nFails: {fails}")
         return successes, fails
 
     def mcmc_check(self, acceptance_probability: float) -> bool:
@@ -476,7 +477,7 @@ class Simulation:
         n31 = self.universe.tetras_31.get_number_occupied()
         n3 = self.universe.tetrahedron_pool.get_number_occupied()
 
-        # Add
+        # Calculate the acceptance probability (1: add, 2: delete, 3: flip, 4: shift, 5: ishift)
         if move == 1:
             add_ap = (n31 / (n31 + 2)) * np.exp(self.k0 - 4 * self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
@@ -488,7 +489,6 @@ class Simulation:
                     add_ap *= np.exp(8 * self.epsilon * (self.target_volume - n3 - 2))
                     
             return add_ap
-        # Delete
         elif move == 2:
             delete_ap = (n31 / (n31 - 2)) * np.exp(-self.k0 + 4 * self.k3)
 
@@ -501,10 +501,8 @@ class Simulation:
                     delete_ap *= np.exp(-8 * self.epsilon * (self.target_volume - n3 - 2))
     
             return delete_ap
-        # Flip
         elif move == 3:
             return 1
-        # Shift
         elif move == 4:
             shift_ap = np.exp(-self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
@@ -513,7 +511,6 @@ class Simulation:
                         shift_ap *= np.exp(self.epsilon * (2 * self.target_volume - 2 * n3 - 1))
 
             return shift_ap
-        # Inverse shift
         elif move == 5:
             ishift_ap = np.exp(self.k3)
             # If the target volume is specified, adjust AP according to the volume switch
@@ -728,7 +725,7 @@ class Simulation:
     
 
 if __name__ == "__main__":
-    universe = Universe(geometry_infilename='../classes/initial_universes/initial_t3.txt', strictness=3)
+    universe = Universe(geometry_infilename='initial_universes/initial_t3.CDT')
     observables = ['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections']
     seed = 0
     start = time.time()
@@ -739,17 +736,17 @@ if __name__ == "__main__":
         k0=1.0,
         k3=1.08,
         tune_flag=True,
-        thermal_sweeps=1,
+        thermal_sweeps=10,
         sweeps=0,
         k_steps=300000,
         target_volume=3000, # Without tune does not do anything
-        observables=[],
+        observables=observables,
         include_mcmc_data=True,
         measuring_interval=1, # Measure every sweep
         measuring_thermal=True,
-        measuring_main=False,
-        save_main=False,
-        save_thermal=False,
+        measuring_main=True,
+        save_main=True,
+        save_thermal=True,
         saving_interval=100, # When to save geometry files
         validity_check=False
     )
@@ -760,5 +757,5 @@ if __name__ == "__main__":
 
     print(f"Time taken: {time.time() - start}")
 
-    # simulation.universe.check_validity()
+    simulation.universe.check_validity()
     

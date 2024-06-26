@@ -29,7 +29,6 @@ class Triangle:
         vc (Vertex): Vertex to the center.
         time (int): Time of the triangle (time of the base).
     """
-
     def __init__(self):
         self.ID: int
         self.type: str

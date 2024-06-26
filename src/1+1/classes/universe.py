@@ -25,9 +25,11 @@ class Universe:
     and stores properties of the geometry in a convenient matter. It also
     provides member functions that carry out changes on the geometry.
 
-    Attributes:
+    Args (Attributes):
         total_time (int): Total number of time slices.
         initial_slice_size (int): Initial size of the time slices.
+
+    Attributes:
         vertex_pool (Pool): Pool of vertices.
         triangle_pool (Pool): Pool of triangles.
         triangle_add_bag (Bag): Bag of triangles that can be added.
@@ -39,29 +41,31 @@ class Universe:
         triangle_up_count (int): Number of triangles with an upwards orientation.
         triangle_down_count (int): Number of triangles with a downwards orientation.
     """
-    class Constants:
-        VERTEX_CAPACITY = 1000000
-        TRIANGLE_CAPACITY = 2 * VERTEX_CAPACITY
+    VERTEX_CAPACITY = 1000000
+    TRIANGLE_CAPACITY = 2 * VERTEX_CAPACITY
+    MINIMAL_TIME = 3
+    MINIMAL_SLICE_SIZE = 3
+    MINIMAL_VERTEX_CAPACITY = 9
 
     def __init__(self, total_time: int, initial_slice_size: int):
-        if total_time < 3:
+        if total_time < self.MINIMAL_TIME:
             raise ValueError("Total time must be greater than 3.")
-        if initial_slice_size < 3:
+        if initial_slice_size < self.MINIMAL_SLICE_SIZE:
             raise ValueError("Initial slice size must be greater than 3.")
-        if self.Constants.VERTEX_CAPACITY < 9:
+        if self.VERTEX_CAPACITY < self.MINIMAL_VERTEX_CAPACITY:
             raise ValueError("Vertex capacity must be greater than 9.")
         
         self.total_time = total_time
         self.initial_slice_size = initial_slice_size
 
         # Create pools for vertices and triangles
-        self.vertex_pool = Pool(capacity=self.Constants.VERTEX_CAPACITY)
-        self.triangle_pool = Pool(capacity=self.Constants.TRIANGLE_CAPACITY)
+        self.vertex_pool = Pool(capacity=self.VERTEX_CAPACITY)
+        self.triangle_pool = Pool(capacity=self.TRIANGLE_CAPACITY)
 
         # Create bags
-        self.triangle_add_bag = Bag(pool_capacity=self.Constants.TRIANGLE_CAPACITY)
-        self.four_vertices_bag = Bag(pool_capacity=self.Constants.VERTEX_CAPACITY)
-        self.triangle_flip_bag = Bag(pool_capacity=self.Constants.TRIANGLE_CAPACITY)
+        self.triangle_add_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
+        self.four_vertices_bag = Bag(pool_capacity=self.VERTEX_CAPACITY)
+        self.triangle_flip_bag = Bag(pool_capacity=self.TRIANGLE_CAPACITY)
 
         # Total size of the triangulation   
         self.n_vertices = total_time * initial_slice_size
@@ -280,12 +284,10 @@ class Universe:
         if self.triangle_flip_bag.contains(tr.ID):
             self.triangle_flip_bag.remove(tr.ID)
             self.triangle_flip_bag.add(tl.ID)
-            # print(f"DEL removed {tr.ID} from flip bag and added {tl.ID}")
         
         if self.triangle_flip_bag.contains(trc.ID):
             self.triangle_flip_bag.remove(trc.ID)
             self.triangle_flip_bag.add(tlc.ID)
-            # print(f"DEL removed {trc.ID} from flip bag and added {tlc.ID}\n")
 
         # Clear references to avoid memory leaks
         vertex.clear_references()
@@ -464,6 +466,14 @@ class Universe:
     def check_validity(self):
         """
         Check the validity of the triangulation.
+
+        Checks among others:
+        - If each vertex has a left and right neighbour.
+        - If the time and connectivity of future neighbours is valid.
+        - If the time and connectivity of past neighbours is valid.
+        - If each triangle has three neighbouring triangles.
+        - If each triangle has  base vertices from the same time slice.
+        - If each triangle has the correct orientation and time.
         """
         state = self.get_triangulation_state()
         vertex_sheet = list(state.values())
@@ -510,7 +520,7 @@ class Universe:
         # Check for validity of triangles
         for triangle in all_triangles:
             assert len(triangle.get_triangles()) == 3, (
-                f"Triangle {triangle.ID} has {len(triangle.get_triangles())} triangles"
+                f"Triangle {triangle.ID} has {len(triangle.get_triangles())} neighbouring triangles"
             )
             assert triangle.get_vertex_left().time == triangle.get_vertex_right().time, (
                 f"Triangle {triangle.ID} has vertices from different time slices"

@@ -4,6 +4,9 @@
 # Date: 17-02-2024
 # 
 # Description: Defines a tetrahedron in the triangulation.
+# Contains functions to set the vertices and tetrahedron neighbours, as well as
+# functions to get and set the vertices and tetrahedron neighbours of the tetrahedron, 
+# check the type of the tetrahedron, and remove all references to other objects.
 
 from __future__ import annotations
 from typing import TYPE_CHECKING, Union
@@ -24,13 +27,12 @@ class Tetrahedron:
         tnbr: The tetrahedron neighbours of the tetrahedron.
         vs: The vertices of the tetrahedron.
     """
-
     class Type:
         THREEONE = '31'
         ONETHREE = '13'
         TWOTWO = '22'
 
-    def __init__(self) -> None:
+    def __init__(self):
         self.ID: int = -1
         self.time: int = -1
         self.type: Union[Tetrahedron.Type, None] = None
@@ -53,7 +55,7 @@ class Tetrahedron:
             Tetrahedron.Type.TWOTWO: "22"
         }[t]
     
-    def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex, v3: Vertex) -> None:
+    def set_vertices(self, v0: Vertex, v1: Vertex, v2: Vertex, v3: Vertex):
         """
         Sets the vertices of the tetrahedron.
 
@@ -175,6 +177,8 @@ class Tetrahedron:
             ValueError: If the vertex is not in the tetrahedron.
         """
         vertex_index = np.where(self.vs == v)[0]
+
+        # Check if the vertex is in the tetrahedron (index not empty)
         if len(vertex_index) > 0:
             return self.tnbr[vertex_index[0]]
             
@@ -195,6 +199,7 @@ class Tetrahedron:
         face = set(self.vs)
         face.remove(v)
 
+        # Find the vertex that is not in the face
         for tnv in tn.vs:
             if tnv not in face:
                 return tnv
@@ -215,26 +220,33 @@ class Tetrahedron:
             ValueError: If the given tetrahedron is not a neighbour of the tetrahedron.
         """
         tn_index = np.where(self.tnbr == tn)[0]
+
+        # Check if the tetrahedron is a neighbour of the tetrahedron (index not empty)
         if len(tn_index) > 0:
             return self.vs[tn_index[0]]
             
         raise ValueError(f"Tetrahedron {tn.ID} is not a neighbour of tetrahedron {self.ID}")
 
-    def exchange_tetra_opposite(self, v: Vertex, tn: Tetrahedron) -> None:
+    def exchange_tetra_opposite(self, v: Vertex, tn: Tetrahedron):
         """
         Exchanges the tetrahedron opposite to the given vertex with the given tetrahedron.
 
         Args:
             v (Vertex): The vertex to exchange the tetrahedron opposite for.
             tn (Tetrahedron): The tetrahedron to exchange the opposite tetrahedron for.
+
+        Raises:
+            ValueError: If the vertex is not in the tetrahedron.
         """
         index = np.where(self.vs == v)[0]
+
+        # Check if the vertex is in the tetrahedron (index not empty)
         if len(index) > 0:
             self.tnbr[index[0]] = tn
         else:
             raise ValueError(f"Vertex {v.ID} is not in tetrahedron {self.ID}")
 
-    def clear_references(self) -> None:
+    def clear_references(self):
         """
         Clears all the tetrahedron neighbours and vertices.
         """

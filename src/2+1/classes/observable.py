@@ -15,12 +15,16 @@ class Observable:
     """
     Represents an observable in the simulation.
 
-    Attributes:
+    Args (Attributes):
         observable (str): The name of the observable.
         thermal_sweeps (int): The number of thermal sweeps.
         main_sweeps (int): The number of main sweeps.
-        data (list): The data of the observable.
         k0 (float): The k0 value.
+        measuring_interval (int): The interval at which to measure the observable.
+
+    Attributes:
+        data (list): The data of the observable.
+        next (int): The next index to measure.
     """
     def __init__(self, observable: str, thermal_sweeps: int, main_sweeps: int, k0: float, measuring_interval: int):
         self.observable = observable

@@ -18,8 +18,10 @@ class Pool:
     and destroy objects. It is used to keep track of the objects that are
     currently in use and the objects that are available for use.
 
-    Attributes:
+    Args (Attributes):
         capacity (int): Maximum number of objects in pool.
+
+    Attributes:
         elements (List[Union[Triangle, Vertex, None]]): List of objects.
         used_indices (Set[int]): Set of indices of used objects.
         first (int): Index of first free object.

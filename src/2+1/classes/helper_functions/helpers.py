@@ -1,4 +1,10 @@
-# Load packages
+# helpers.py
+#
+# Author: Seda den Boer
+# Date: 10-04-2024
+#
+# Description: Helper functions for the 2+1D CDT Monte Carlo simulation.
+
 from __future__ import print_function
 import sys
 sys.path.append('..')
@@ -12,6 +18,8 @@ try:
 except ImportError:
     pass
 
+
+# The function below is from https://gist.github.com/xoolive/e627baa1315dc3413ae8be8cf5a02169
 def total_size(o, handlers={}, verbose=False):
     """ Returns the approximate memory footprint an object and all of its contents.
 

@@ -16,6 +16,9 @@ class Bag:
     be added to and removed from. It is used to be able to pick random
     objects from a set of objects with certain properties.
 
+    Args (Attributes): 
+        pool_capacity (int): Maximum number of objects in bag.
+        
     Attributes:
         pool_capacity (int): Maximum number of objects in bag.
         elements (np.ndarray): Array of pool indices.
@@ -84,6 +87,9 @@ class Bag:
         """
         Pick a random object from Bag.
 
+        Raises:
+            ValueError: If Bag is empty.
+
         Returns:
             int: Random pool index from Bag.
         """
@@ -92,6 +98,8 @@ class Bag:
         elif self.size > 0:
             # Pick random element from Bag
             random_element_id = self.elements[random.randint(0, self.size - 1)]
+
+            # If random element is empty, pick another random element
             while random_element_id == self.EMPTY:
                 random_element_id = self.elements[random.randint(0, self.size - 1)]
 
@@ -130,7 +138,7 @@ class Bag:
         """
         return np.where(self.indices != self.EMPTY)[0]
     
-    def log(self) -> None:
+    def log(self):
         """
         Print Bag.
         """
@@ -138,10 +146,8 @@ class Bag:
         print("Elements:")
         for i in range(self.size):
             print(f"size index {i}: {self.elements[i]}")
-
         print(self.elements)
         print(self.indices)
-    
         print("--")
     
     def __str__(self) -> str:

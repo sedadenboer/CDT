@@ -18,9 +18,11 @@ class Vertex:
     """
     Represents a vertex in the triangulation.
 
+    Args (Attributes):
+        time (int): Time of the vertex.
+
     Attributes:
         ID (int): Unique identifier for the vertex.
-        time (int): Time of the vertex.
         tr (Triangle): Triangle to the right.
         tl (Triangle): Triangle to the left.
         past_neighbours (List[Vertex]): List of past neighbours.

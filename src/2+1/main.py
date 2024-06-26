@@ -1,3 +1,10 @@
+# main.py
+# 
+# Author: Seda den Boer
+# Date: 15-05-2024
+#
+# Description: Main file for running the 2+1D CDT Monte Carlo simulation.
+
 import sys
 sys.path.append('..')
 import argparse
@@ -8,18 +15,20 @@ import numpy as np
 
 def main(args):
     # Create an instance of the Universe class
-    T = args.T
-    k0 = args.k0
     if args.intial_geometry:
-        universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={T}.txt', strictness=3)
+        # Create an initial universe with the provided number of time slices
+        universe = Universe(geometry_infilename=f'classes/initial_universes/initial_g=0_T={args.T}.CDT')
         k3 = args.k3
     else:
-        universe = Universe(geometry_infilename=f'saved_universes_thermal/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
-        # universe = Universe(geometry_infilename=f'experiments/thermal_{args.target_volume}/T{T}/saved_universes/k0={k0}/T{T}_k0={k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt', strictness=3)
-        # Get corresponding k3 value
-        k3_file = f'measurements_thermal/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
-        # k3_file = f'experiments/thermal_{args.target_volume}/T{T}/measurements/k0={args.k0}/T{T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
-        k3_values = np.load(k3_file)
+        # Load the universe and k3 value from the provided files (has to be adjusted dependent on the path and file names)
+        geometry_infile = 'saved_universes_thermal/k0={args.k0}/' \
+                         f'T{args.T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_thermal_1000.txt'
+        k3_infile = 'measurements_thermal/k0={args.k0}/' \
+                         f'T{args.T}_k0={args.k0}_tswps=1000_swps=0_kstps={args.k_steps}_chain={args.seed}_k3_values.npy'
+        
+        # Load the universe and k3 value
+        universe = Universe(geometry_infilename=geometry_infile)
+        k3_values = np.load(k3_infile)
         k3 = k3_values[-1]
 
         print(f'Loaded universe with k0={args.k0} and k3={k3}')
@@ -54,7 +63,7 @@ def main(args):
 
     # Start the simulation
     simulation.start(
-        outfile=f'T{T}_k0={simulation.k0}_tswps={simulation.thermal_sweeps}_swps={simulation.sweeps}_kstps={simulation.k_steps}_chain={args.seed}'
+        outfile=f'T{args.T}_k0={simulation.k0}_tswps={args.thermal_sweeps}_swps={args.sweeps}_kstps={args.k_steps}_chain={args.seed}'
     )
 
 
@@ -76,7 +85,9 @@ if __name__ == "__main__":
     parser.add_argument("--target_volume", type=int, default=0, help="Target volume")
     parser.add_argument("--target2_volume", type=int, default=0, help="Second target volume")
     parser.add_argument("--epsilon", type=float, default=0.00005, help="Epsilon parameter")
-    parser.add_argument("--observables", nargs="+", default=['n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections'], help="List of observables to measure")
+    parser.add_argument("--observables", nargs="+", default=[
+        'n_vertices', 'n_tetras', 'n_tetras_31', 'n_tetras_22', 'slice_sizes', 'slab_sizes', 'curvature', 'connections'
+        ], help="List of observables to measure")
     parser.add_argument("--include_mcmc_data", action="store_true", help="Flag to include MCMC data in the observables)")
     parser.add_argument("--measuring_interval", type=int, default=1, help="Measuring interval")
     parser.add_argument("--measuring_thermal", action="store_true",help="Flag to measure thermal data")
