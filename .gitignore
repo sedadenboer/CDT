@@ -32,3 +32,4 @@ src/2+1/classes/triangle.py
 *.log
 tests
 visualisation
+generate_initial2.py

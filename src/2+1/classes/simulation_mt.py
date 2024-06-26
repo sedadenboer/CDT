@@ -141,7 +141,9 @@ class Simulation:
             print("========================================\n")
             print("THERMAL SWEEPS\n")
             print("----------------------------------------\n")
-            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, thermal = {self.thermal_sweeps}, sweeps = {self.sweeps}, target = {self.target_volume}, target2d = {self.target2_volume}\n")
+            print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, \
+                  thermal = {self.thermal_sweeps}, sweeps = {self.sweeps}, \
+                  target = {self.target_volume}, target2d = {self.target2_volume}\n")
             print("----------------------------------------\n")
 
             for i in range(1, self.thermal_sweeps + 1):
@@ -150,7 +152,9 @@ class Simulation:
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
-                print(f"\nThermal i: {i} \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, k0: {self.k0}, k3: {self.k3}")
+                print(f"\nThermal i: {i} \
+                      N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22} \
+                      k0: {self.k0}, k3: {self.k3}")
             
                 # Perform sweeps and save general mcmc move stats
                 thermal_successes, thermal_fails = self.perform_sweep(self.k_steps)
@@ -204,7 +208,9 @@ class Simulation:
                 n31 = self.universe.tetras_31.get_number_occupied()
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
-                print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} k0: {self.k0} k3: {self.k3} \t CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
+                print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} \
+                      k0: {self.k0} k3: {self.k3} \
+                      CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
 
                 # Perform sweeps and save general mcmc move stats
                 main_successes, main_fails = self.perform_sweep(self.k_steps)
@@ -222,7 +228,10 @@ class Simulation:
                     while compare != self.target_volume:
                         self.attempt_move()
                         # Update the compare variable based on the volume switch
-                        compare = self.universe.tetras_31.get_number_occupied() if self.volfix_switch == 0 else self.universe.tetrahedron_pool.get_number_occupied()
+                        if self.volfix_switch == 0:
+                            compare = self.universe.tetras_31.get_number_occupied()
+                        else:
+                            compare = self.universe.tetrahedron_pool.get_number_occupied()
             
                 # Check if there's a 2D target volume specified for the timeslices
                 if self.target2_volume > 0 and i % self.measuring_interval == 0:
@@ -649,7 +658,9 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra31_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
-            return self.universe.ishift_u(tetra31_id=random_tetra31_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label)
+            return self.universe.ishift_u(
+                tetra31_id=random_tetra31_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label
+            )
 
         return False
                 
@@ -674,7 +685,9 @@ class Simulation:
         # Perform a random move from the valid proposals
         if valid_proposals:
             random_tetra13_label, random_tetra22l_label, random_tetra22r_label = self.rng.choice(valid_proposals)
-            return self.universe.ishift_d(tetra13_id=random_tetra13_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label)
+            return self.universe.ishift_d(
+                tetra13_id=random_tetra13_label, tetra22l_id=random_tetra22l_label, tetra22r_id=random_tetra22r_label
+            )
         
         return False
 
@@ -747,7 +760,7 @@ if __name__ == "__main__":
         measuring_main=True,
         save_main=True,
         save_thermal=True,
-        saving_interval=100, # When to save geometry files
+        saving_interval=1, # When to save geometry files
         validity_check=False
     )
 

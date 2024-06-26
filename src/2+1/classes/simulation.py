@@ -142,7 +142,7 @@ class Simulation:
             print("----------------------------------------\n")
             print(f"k0 = {self.k0}, k3 = {self.k3}, epsilon = {self.epsilon}, \
                   thermal = {self.thermal_sweeps}, sweeps = {self.sweeps}, \
-                    target = {self.target_volume}, target2d = {self.target2_volume}\n")
+                  target = {self.target_volume}, target2d = {self.target2_volume}\n")
             print("----------------------------------------\n")
 
             for i in range(1, self.thermal_sweeps + 1):
@@ -152,7 +152,7 @@ class Simulation:
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
                 print(f"\nThermal i: {i} \
-                      \t N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, \
+                      N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}, \
                       k0: {self.k0}, k3: {self.k3}")
             
                 # Perform sweeps and save general mcmc move stats
@@ -208,7 +208,7 @@ class Simulation:
                 n3 = self.universe.tetrahedron_pool.get_number_occupied()
                 n22 = self.universe.tetras_22.get_number_occupied()
                 print(f"Main i: {i} target: {self.target_volume} target2d: {self.target2_volume} \
-                      k0: {self.k0} k3: {self.k3} \t \
+                      k0: {self.k0} k3: {self.k3} \
                       CURRENT N0: {n0}, N3: {n3}, N31: {n31}, N13: {n3 - n31 - n22}, N22: {n22}\n")
 
                 # Perform sweeps and save general mcmc move stats
