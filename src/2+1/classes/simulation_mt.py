@@ -10,7 +10,7 @@
 import random
 import numpy as np
 import gc
-from universe_mt import Universe
+from universe import Universe
 from observable import Observable
 from typing import TYPE_CHECKING, List, Tuple, Dict, Any
 if TYPE_CHECKING:
